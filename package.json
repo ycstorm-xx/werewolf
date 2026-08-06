@@ -1,0 +1,12 @@
+{
+  "name": "werewolf-settlement",
+  "version": "1.0.0",
+  "description": "狼人杀积分助手 + 腾讯文档同步",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
