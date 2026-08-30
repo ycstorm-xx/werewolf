@@ -654,6 +654,34 @@ header .subtitle {
   color: #888;
   margin-top: 2px;
 }
+.role-info-card {
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid #2a2a4a;
+}
+.role-info-card:last-child { margin-bottom: 0; }
+.role-info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.role-info-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0e6d3;
+}
+.role-info-count {
+  font-size: 12px;
+  font-weight: 600;
+}
+.role-info-skill {
+  font-size: 13px;
+  color: #bbb;
+  line-height: 1.7;
+}
 .state-overlay {
   display: none;
   position: fixed;
@@ -761,6 +789,7 @@ header .subtitle {
       <button class="info-btn" id="nameBindBtn">姓名</button>
       <button class="info-btn" id="rulesBtn">规则</button>
       <button class="info-btn" id="infoBtn">记录</button>
+      <button class="info-btn" id="roleInfoBtn">角色</button>
       <button class="info-btn" id="boardSelectBtn">板子</button>
       <button class="info-btn" id="randomBtn">随机</button>
     </div>
@@ -836,6 +865,7 @@ header .subtitle {
         <div class="action-btn" data-board="wolfking" style="display:block;padding:20px;font-size:18px">狼王守卫板子</div>
         <div class="action-btn" data-board="whitewolfking" style="display:block;padding:20px;font-size:18px">白狼王板子</div>
         <div class="action-btn" data-board="muteElder" style="display:block;padding:20px;font-size:18px">禁言长老板子</div>
+        <div class="action-btn" data-board="nightmare" style="display:block;padding:20px;font-size:18px">梦魇板子</div>
       </div>
     </div>
   </div>
@@ -850,7 +880,7 @@ header .subtitle {
 <script>
 (function() {
   // ─── Constants / Board config ────────────────────────────────
-  let boardType = 'mech';  // 'mech' | 'wolfking' | 'whitewolfking' | 'muteElder'
+  let boardType = 'mech';  // 'mech' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare'
 
   let ROLES = {};
   function initRoles(board) {
@@ -878,6 +908,14 @@ header .subtitle {
       muteElder: { label: '禁言长老', type: 'god',  count: 1 },
       wolf:   { label: '狼人',       type: 'wolf', count: 4 },
       villager: { label: '平民',     type: 'good', count: 4 },
+    } : board === 'nightmare' ? {
+      seer:   { label: '预言家', type: 'god',  count: 1 },
+      witch:  { label: '女巫',   type: 'god',  count: 1 },
+      hunter: { label: '猎人',   type: 'god',  count: 1 },
+      dreamweaver: { label: '摄梦人', type: 'god', count: 1 },
+      wolf:   { label: '狼人',   type: 'wolf', count: 3 },
+      nightmare: { label: '噩梦之影', type: 'wolf', count: 1 },
+      villager: { label: '平民', type: 'good', count: 4 },
     } : {
       seer:   { label: '预言家', type: 'god',  count: 1 },
       witch:  { label: '女巫',   type: 'god',  count: 1 },
@@ -895,6 +933,23 @@ header .subtitle {
     good: { cls: 'role-tag-good', label: '平民' },
   };
   const TOTAL = 12;
+
+  // ─── 角色简介 / 技能说明 ──────────────────────────────────────
+  const ROLE_SKILLS = {
+    seer:    '每晚可查验一名玩家的身份，获知其阵营（好人/狼人）。',
+    witch:   '拥有一瓶解药和一瓶毒药。解药可救起当晚被狼刀的玩家（通常不可自救），毒药可毒杀一名玩家，两者各限用一次。',
+    hunter:  '被狼人刀死或被放逐出局时，可开枪带走一名玩家；被女巫毒死时不能开枪。',
+    guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
+    knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
+    muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
+    dreamweaver: '每晚选择一名梦游者，梦游者免疫夜间伤害；若摄梦人出局，梦游者也会一同出局。',
+    mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
+    wolfKing: '被放逐或被猎人开枪带走时，可开枪带走一名玩家。',
+    whiteWolfKing: '自爆出局后，可开枪带走一名好人玩家。',
+    nightmare: '每晚可恐惧一名玩家，使其当夜无法行动；恐惧到狼人则狼队无法袭击；不能连续两晚恐惧同一人；首夜与狼人互不知身份。',
+    wolf:    '每晚与狼同伴共同刀杀一名玩家。',
+    villager: '无特殊技能，靠推理与投票找出狼人。',
+  };
 
   // ─── Tencent Docs API config (from external file) ──────────────
   const C = window.TENCENT_DOCS_CONFIG || {};
@@ -927,6 +982,7 @@ header .subtitle {
   let wolfKingShotTarget = null;
   let whiteWolfKingShotTarget = null;
       let mechChainShotTarget = null;
+  let mechHunterRevengeTarget = null; // mech learned hunter, killed by wolf knife at night
   let currentStep = 0;
 
   // Multi-round state
@@ -936,9 +992,13 @@ header .subtitle {
   let witchHasPoison = true;
   let mechNightAction = null;   // { type: 'shield'|'poison'|'check', target: num }
   let mechHasUsedPoison = false;
+  let mechActionSkipped = false; // mech chose to skip its night skill this round
   let mechExtraKill = null;     // second kill target when mech is last wolf
   let mechExtraKillUsed = false; // ensures extra kill only triggers once
   let knightDuelTarget = null;   // knight's duel target (muteElder board)
+  let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
+  let nightmareFearTarget = null; // 噩梦之影恐惧目标 (nightmare board)
+  let lastNightmareTarget = null; // 上一晚恐惧目标（不能连续恐惧同一人）
   let gameWinner = null;
   let roundStartDeadCount = 0;   // deadPlayers.length at start of current round
   let gameLog = [];  // round-by-round record [{ round, night: {...}, day: {...} }]
@@ -1006,6 +1066,22 @@ header .subtitle {
     if (mechNightAction && mechNightAction.type === 'poison' && mechNightAction.target === hunter) return false;
     return killTarget === hunter;
   }
+  function canMechHunterRevenge() {
+    const mech = getAssigned('mech');
+    if (mech == null) return false;
+    if (!isDead(mech)) return false;
+    if (!canShootAsHunter(mech)) return false; // mech learned hunter
+    const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+    if (!tonightDeaths.includes(mech)) return false;
+    // Mech was poisoned → cannot shoot
+    if (witchPoisonTarget === mech) return false;
+    if (mechNightAction && mechNightAction.type === 'poison' && mechNightAction.target === mech) return false;
+    return killTarget === mech;
+  }
+  function isMechDoubleKill() {
+    // 机械狼学狼人、作为最后一只狼本轮进行了额外刀（双刀）
+    return mechExtraKill > 0;
+  }
   function canMechChainShot(num) {
     if (!num) return false;
     if (assignments[num] !== 'mech') return false;
@@ -1052,8 +1128,12 @@ header .subtitle {
     const mechAlive = mechN != null && !isDead(mechN);
     const wkAlive = wkN != null && !isDead(wkN);
     const wwkAlive = wwkN != null && !isDead(wwkN);
-    if (aliveWolves === 0 && !mechAlive && !wkAlive && !wwkAlive) return 'good';
-    const gods = boardType === 'muteElder' ? ['seer','witch','knight','muteElder'] : ['seer','witch','hunter','guard'];
+    const nmN = getAssigned('nightmare');
+    const nmAlive = nmN != null && !isDead(nmN);
+    if (aliveWolves === 0 && !mechAlive && !wkAlive && !wwkAlive && !nmAlive) return 'good';
+    const gods = boardType === 'muteElder' ? ['seer','witch','knight','muteElder']
+      : boardType === 'nightmare' ? ['seer','witch','hunter','dreamweaver']
+      : ['seer','witch','hunter','guard'];
     const deadGods = gods.filter(rk => {
       const n = getAssigned(rk);
       return n != null && isDead(n);
@@ -1068,12 +1148,17 @@ header .subtitle {
   function isWolfFactionNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'wolf' || rk === 'mech' || rk === 'wolfKing' || rk === 'whiteWolfKing';
+    return rk === 'wolf' || rk === 'mech' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare';
   }
   function isGodNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'seer' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder';
+    return rk === 'seer' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver';
+  }
+  function nightmareBlocksKill() {
+    if (boardType !== 'nightmare') return false;
+    if (nightmareFearTarget == null) return false;
+    return isWolfFactionNum(nightmareFearTarget) && !isDead(nightmareFearTarget);
   }
   function awardScore(num, points, reason) {
     if (num == null) return;
@@ -1122,6 +1207,18 @@ header .subtitle {
         else awardScore(meNum, -1, '禁言到好人');
       }
     }
+    // Nightmare board scoring (噩梦之影恐惧 + 摄梦人梦游)
+    if (boardType === 'nightmare') {
+      const nm = getAssigned('nightmare');
+      if (nm != null && nightmareFearTarget != null) {
+        if (isGodNum(nightmareFearTarget)) awardScore(nm, 1, '恐惧到神');
+        else if (isWolfFactionNum(nightmareFearTarget)) awardScore(nm, -1, '恐惧到狼人');
+      }
+      const dw = getAssigned('dreamweaver');
+      if (dw != null && dreamTarget != null && dreamTarget !== 0 && killTarget === dreamTarget) {
+        awardScore(dw, 2, '梦游免死');
+      }
+    }
     // Seer check on wolf
     if (seerCheckTarget != null) {
       if (isWolfFactionNum(seerCheckTarget)) awardScore(getAssigned('seer'), 1, '验到狼人');
@@ -1138,9 +1235,9 @@ header .subtitle {
         awardScore(wn, 2, '毒到狼人');
       }
     }
-    // Guard blocked wolf kill
+    // Guard blocked wolf kill (机械狼双刀第一刀无视守卫，守卫无效)
     const gn = getAssigned('guard');
-    if (guardProtectTarget && killTarget && guardProtectTarget === killTarget && gn != null) {
+    if (guardProtectTarget && killTarget && guardProtectTarget === killTarget && gn != null && !isMechDoubleKill()) {
       awardScore(gn, 2, '守到狼刀');
     }
     // Villager killed by wolf (not saved/guarded)
@@ -1170,6 +1267,11 @@ header .subtitle {
     if (mechChainShotTarget != null) {
       const mechNum = hunterShotTarget ? hunterShotTarget : hunterRevengeTarget;
       if (mechNum != null) awardScore(mechNum, 4, '机械狼猎人开枪带走');
+    }
+    // Mech-hunter night revenge shot (killed by wolf knife at night)
+    if (mechHunterRevengeTarget != null) {
+      const m = getAssigned('mech');
+      if (m != null) awardScore(m, 4, '机械狼猎人开枪带走');
     }
     // Hunter revenge shot on wolf faction
     if (hunterRevengeTarget != null && isWolfFactionNum(hunterRevengeTarget)) {
@@ -1234,9 +1336,13 @@ header .subtitle {
     wolfKingShotTarget = null;
     whiteWolfKingShotTarget = null;
     mechChainShotTarget = null;
+    mechHunterRevengeTarget = null;
     mechNightAction = null;
+    mechActionSkipped = false;
     mechExtraKill = null;
     knightDuelTarget = null;
+    dreamTarget = null;
+    nightmareFearTarget = null;
     wolfSuicide = null;
     isDayPhase = false;
   }
@@ -1246,18 +1352,31 @@ header .subtitle {
     while (deadPlayers.length > roundStartDeadCount) {
       deadPlayers.pop();
     }
+    const dreamer = boardType === 'nightmare' ? dreamTarget : null;
+    const dreamerImmune = dreamer != null && dreamer !== 0;
+    const dreamweaverNum = boardType === 'nightmare' ? getAssigned('dreamweaver') : null;
+    const fearBlocksKill = nightmareBlocksKill();
     const guardTarget = guardProtectTarget;
     const mechShield = mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
+    // 机械狼学狼人、作为最后一只狼首次双刀时，第一刀无视守卫守护
+    const mechFirstKillPierces = isMechDoubleKill();
     if (killTarget) {
-      const isGuarded = killTarget === guardTarget;
+      const isGuarded = !mechFirstKillPierces && killTarget === guardTarget;
       const isSaved = witchSaveAction === 'save';
+      const isDreamImmune = dreamerImmune && killTarget === dreamer;
+      // 噩梦之影恐惧狼人 → 狼队无法袭击；梦游者免疫夜伤 → 不结算狼刀
+      if (fearBlocksKill || isDreamImmune) {
+        // 空刀 / 梦游者免死
+      }
       // 同守同救: guard AND witch on same target -> still dies (unless mech guard shields)
-      if (isGuarded && isSaved && killTarget !== mechShield) { addDeath(killTarget); }
+      else if (isGuarded && isSaved && killTarget !== mechShield) { addDeath(killTarget); }
       else if (!isGuarded && killTarget !== mechShield && !isSaved) { addDeath(killTarget); }
     }
     if (mechExtraKill) addDeath(mechExtraKill);
     if (witchPoisonTarget && witchHasPoison) {
-      if (witchPoisonTarget === mechShield) {
+      if (dreamerImmune && witchPoisonTarget === dreamer) {
+        // 梦游者免疫夜伤，毒不死
+      } else if (witchPoisonTarget === mechShield) {
         const wn = getAssigned('witch');
         if (wn != null) addDeath(wn);
         witchHasPoison = false;
@@ -1266,6 +1385,10 @@ header .subtitle {
       }
     }
     if (mechNightAction && mechNightAction.type === 'poison') addDeath(mechNightAction.target);
+    // 摄梦人出局 → 梦游者同出
+    if (boardType === 'nightmare' && dreamweaverNum != null && isDead(dreamweaverNum) && dreamerImmune && !isDead(dreamer) && dreamer !== dreamweaverNum) {
+      addDeath(dreamer);
+    }
   }
 
   // ─── Grid renderer ──────────────────────────────────────────
@@ -1327,6 +1450,10 @@ header .subtitle {
     if (boardType === 'muteElder') {
       if (round === 1) return buildMuteElderRound1Steps();
       return buildMuteElderRound2PlusSteps();
+    }
+    if (boardType === 'nightmare') {
+      if (round === 1) return buildNightmareRound1Steps();
+      return buildNightmareRound2PlusSteps();
     }
     if (round === 1) return buildRound1Steps();
     return buildRound2PlusSteps();
@@ -1452,6 +1579,20 @@ header .subtitle {
       },
       handleSelect(num) { if (num === hunterRevengeTarget) return; mechChainShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
     });
+
+    // Mech hunter night revenge shot (mech learned hunter, killed by wolf knife at night)
+    s.push({ title: '机械狼猎人开枪', subtitle: '晨曦',
+      desc() { const m = getAssigned('mech'); return m != null ? m + ' 号机械狼(学猎人)在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canMechHunterRevenge() || mechHunterRevengeTarget !== null,
+      autoSkip: () => !canMechHunterRevenge(),
+      render() {
+        if (!canMechHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼猎人未被刀死，无需开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: mechHunterRevengeTarget ? [mechHunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (mechHunterRevengeTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">机械狼猎人开枪带走</div><div class="kill-value">' + mechHunterRevengeTarget + ' 号 (' + getRoleDisplay(mechHunterRevengeTarget) + ')</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { mechHunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
     // 11: 白天放逐
     s.push({ title: '白天放逐', subtitle: '第1天 - 放逐', desc: '请选择被放逐的玩家号码',
       canProceed: () => banishedPlayer !== null,
@@ -1514,28 +1655,53 @@ header .subtitle {
       }
     }
 
-    // 2. Mech action (guard/witch/seer only)
-    if (ma && ll === '守卫') {
-      s.push({ title: '机械狼守人', subtitle: rl + ' - 守人', desc: '机械狼(学守卫)请选择守护的目标',
-        canProceed: () => mechNightAction && mechNightAction.type === 'shield',
-        render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: mechNightAction && mechNightAction.type === 'shield' ? [mechNightAction.target] : undefined, selectedClass: 'learn-target' }); },
-        handleSelect(num) { mechNightAction = { type: 'shield', target: num }; render(currentStep); },
-      });
-    }
-    if (ma && ll === '女巫' && !mechHasUsedPoison) {
-      s.push({ title: '机械狼毒人', subtitle: rl + ' - 毒人', desc: '机械狼(学女巫)请选择毒人的目标',
-        canProceed: () => mechNightAction && mechNightAction.type === 'poison',
-        render() { return renderGrid({ grayedNums: deadPlayers, disabledNums: [mn], selectedNums: mechNightAction && mechNightAction.type === 'poison' ? [mechNightAction.target] : undefined, selectedClass: 'kill-target' }); },
-        handleSelect(num) { mechNightAction = { type: 'poison', target: num }; mechHasUsedPoison = true; render(currentStep); },
-      });
-    }
-    if (ma && ll === '预言家') {
-      s.push({ title: '机械狼验人', subtitle: rl + ' - 验人', desc: '机械狼(学预言家)请选择查验的目标',
-        canProceed: () => mechNightAction && mechNightAction.type === 'check',
-        render() { let h = renderGrid({ grayedNums: deadPlayers, disabledNums: [mn], selectedNums: mechNightAction && mechNightAction.type === 'check' ? [mechNightAction.target] : undefined, selectedClass: 'learn-target' }); if (mechNightAction && mechNightAction.type === 'check') { h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(mechNightAction.target) + '</div></div>'; } return h; },
-        handleSelect(num) { mechNightAction = { type: 'check', target: num }; render(currentStep); },
-      });
-    }
+    // 2. Mech night action (always shown from round 2+, right after wolves kill)
+    s.push({ title: '机械狼行动', subtitle: rl + ' - 行动',
+      desc() {
+        if (mn == null) return '机械狼未分配';
+        const role = ll || '?';
+        if (!ma) return mn + ' 号机械狼(学' + role + ')已阵亡，无法行动';
+        return mn + ' 号机械狼(学' + role + ')的夜间行动';
+      },
+      canProceed() {
+        if (mn == null) return true;
+        if (!ma) return true; // dead → just proceed
+        if (ll !== '守卫' && ll !== '女巫' && ll !== '预言家') return true; // no night skill
+        if (ll === '女巫' && mechHasUsedPoison) return true; // poison already used
+        return mechNightAction !== null || mechActionSkipped;
+      },
+      render() {
+        if (mn == null) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼未分配</div></div>';
+        if (!ma) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼已阵亡，无法行动</div></div>';
+        const role = ll || '?';
+        if (ll === '守卫') {
+          let h = '<div class="action-group"><div class="action-btn ' + (mechActionSkipped ? 'active' : '') + '" data-act="skip-mech">不使用技能</div></div>';
+          h += renderGrid({ grayedNums: deadPlayers, selectedNums: mechNightAction && mechNightAction.type === 'shield' ? [mechNightAction.target] : undefined, selectedClass: 'learn-target' });
+          return h;
+        }
+        if (ll === '女巫') {
+          if (mechHasUsedPoison) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼毒药已使用，无技能</div></div>';
+          let h = '<div class="action-group"><div class="action-btn ' + (mechActionSkipped ? 'active' : '') + '" data-act="skip-mech">不使用技能</div></div>';
+          h += renderGrid({ grayedNums: deadPlayers, disabledNums: [mn], selectedNums: mechNightAction && mechNightAction.type === 'poison' ? [mechNightAction.target] : undefined, selectedClass: 'kill-target' });
+          return h;
+        }
+        if (ll === '预言家') {
+          let h = '<div class="action-group"><div class="action-btn ' + (mechActionSkipped ? 'active' : '') + '" data-act="skip-mech">不使用技能</div></div>';
+          h += renderGrid({ grayedNums: deadPlayers, disabledNums: [mn], selectedNums: mechNightAction && mechNightAction.type === 'check' ? [mechNightAction.target] : undefined, selectedClass: 'learn-target' });
+          if (mechNightAction && mechNightAction.type === 'check') { h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(mechNightAction.target) + '</div></div>'; }
+          return h;
+        }
+        return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼学' + role + '，无夜间技能</div></div>';
+      },
+      handleAction(act) { if (act === 'skip-mech') { mechActionSkipped = true; mechNightAction = null; render(currentStep); } },
+      handleSelect(num) {
+        mechActionSkipped = false;
+        if (ll === '守卫') mechNightAction = { type: 'shield', target: num };
+        else if (ll === '女巫') { mechNightAction = { type: 'poison', target: num }; mechHasUsedPoison = true; }
+        else if (ll === '预言家') mechNightAction = { type: 'check', target: num };
+        render(currentStep);
+      },
+    });
 
     // 3. Seer check
     s.push({ title: '预言家验人', subtitle: rl + ' - 验人', desc: sDead ? '预言家已阵亡，无法查验' : '请选择预言家查验的目标',
@@ -1632,6 +1798,19 @@ header .subtitle {
         return h;
       },
       handleSelect(num) { if (num === hunterRevengeTarget) return; mechChainShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    // Mech hunter night revenge shot (mech learned hunter, killed by wolf knife at night)
+    s.push({ title: '机械狼猎人开枪', subtitle: '晨曦',
+      desc() { const m = getAssigned('mech'); return m != null ? m + ' 号机械狼(学猎人)在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canMechHunterRevenge() || mechHunterRevengeTarget !== null,
+      autoSkip: () => !canMechHunterRevenge(),
+      render() {
+        if (!canMechHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">机械狼猎人未被刀死，无需开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: mechHunterRevengeTarget ? [mechHunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (mechHunterRevengeTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">机械狼猎人开枪带走</div><div class="kill-value">' + mechHunterRevengeTarget + ' 号 (' + getRoleDisplay(mechHunterRevengeTarget) + ')</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { mechHunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
     });
         // 8. Day banishment
     s.push({ title: '白天放逐', subtitle: '第' + round + '天 - 投票', desc: '请选择被放逐的玩家号码',
@@ -2590,6 +2769,309 @@ header .subtitle {
     return s;
   }
 
+  // ─── Nightmare (梦魇) Round 1 ──────────────────────────────
+  function buildNightmareRound1Steps() {
+    const s = [];
+    // 0: 预言家
+    s.push({ title: '预言家睁眼', subtitle: '第1晚', desc: '请点击选择预言家的号码',
+      canProceed: () => getAssigned('seer') !== null,
+      render() { const sel = getAssigned('seer'); return renderGrid({ grayedNums: grayedExcept('seer'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned('seer'); if (p) unassign(p); assign(num, 'seer'); render(currentStep); },
+    });
+    // 1: 女巫
+    s.push({ title: '女巫睁眼', subtitle: '第1晚', desc: '请点击选择女巫的号码',
+      canProceed: () => getAssigned('witch') !== null,
+      render() { const sel = getAssigned('witch'); return renderGrid({ grayedNums: grayedExcept('witch'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned('witch'); if (p) unassign(p); assign(num, 'witch'); render(currentStep); },
+    });
+    // 2: 猎人
+    s.push({ title: '猎人睁眼', subtitle: '第1晚', desc: '请点击选择猎人的号码',
+      canProceed: () => getAssigned('hunter') !== null,
+      render() { const sel = getAssigned('hunter'); return renderGrid({ grayedNums: grayedExcept('hunter'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned('hunter'); if (p) unassign(p); assign(num, 'hunter'); render(currentStep); },
+    });
+    // 3: 摄梦人
+    s.push({ title: '摄梦人睁眼', subtitle: '第1晚', desc: '请点击选择摄梦人的号码',
+      canProceed: () => getAssigned('dreamweaver') !== null,
+      render() { const sel = getAssigned('dreamweaver'); return renderGrid({ grayedNums: grayedExcept('dreamweaver'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned('dreamweaver'); if (p) unassign(p); assign(num, 'dreamweaver'); render(currentStep); },
+    });
+    // 4: 噩梦之影（首夜单独睁眼，互不知狼人身份）
+    s.push({ title: '噩梦之影睁眼', subtitle: '第1晚', desc: '请点击选择噩梦之影的号码（首夜与狼人互不知身份）',
+      canProceed: () => getAssigned('nightmare') !== null,
+      render() { const sel = getAssigned('nightmare'); return renderGrid({ grayedNums: grayedExcept('nightmare'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned('nightmare'); if (p) unassign(p); assign(num, 'nightmare'); render(currentStep); },
+    });
+    // 5: 狼人
+    s.push({ title: '狼人睁眼', subtitle: '第1晚', desc: '请选择3名狼人的号码',
+      canProceed: () => getAssignedAll('wolf').length === 3,
+      render() { const sel = getAssignedAll('wolf'); const left = 3 - sel.length; return renderGrid({ grayedNums: grayedExcept('wolf'), selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名狼人' : '已选3名狼人' }); },
+      handleSelect(num) { const cur = getAssignedAll('wolf'); const idx = cur.indexOf(num); if (idx >= 0) unassign(num); else if (cur.length < 3) assign(num, 'wolf'); if (getAssignedAll('wolf').length === 3) { const an = new Set(Object.keys(assignments).map(Number)); for (let i = 1; i <= TOTAL; i++) { if (!an.has(i)) assignments[i] = 'villager'; } } render(currentStep); },
+    });
+    // 6: 噩梦之影恐惧
+    s.push({ title: '噩梦之影恐惧', subtitle: '第1晚 - 恐惧', desc: '请选择噩梦之影恐惧的目标（该玩家当夜无法行动；恐惧到狼人则狼队无法袭击）',
+      canProceed: () => nightmareFearTarget !== null,
+      render() { const nmNum = getAssigned('nightmare'); return renderGrid({ grayedNums: [], disabledNums: nmNum ? [nmNum] : [], selectedNums: nightmareFearTarget ? [nightmareFearTarget] : undefined, selectedClass: 'learn-target' }); },
+      handleSelect(num) { nightmareFearTarget = num; lastNightmareTarget = num; render(currentStep); },
+    });
+    // 7: 狼人刀人
+    s.push({ title: '狼人行动', subtitle: '第1晚 - 刀人', desc: '请选择狼人刀人的目标号码',
+      canProceed: () => killTarget !== null,
+      render() {
+        if (nightmareBlocksKill()) { killTarget = 0; return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">噩梦之影恐惧了狼人</div><div class="warning-note">狼人阵营无法袭击（空刀）</div></div>'; }
+        let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>';
+        h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+    // 8: 预言家验人
+    s.push({ title: '预言家验人', subtitle: '第1晚 - 验人', desc: '请选择预言家查验的目标',
+      canProceed: () => nightmareFearTarget === getAssigned('seer') || seerCheckTarget !== null,
+      render() {
+        if (nightmareFearTarget === getAssigned('seer')) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">预言家被噩梦之影恐惧，无法查验</div></div>';
+        let h = renderGrid({ grayedNums: [], selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) { h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv" style="font-size:28px">' + (isWolfFactionNum(seerCheckTarget) ? '狼人' : '好人') + '</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { if (nightmareFearTarget !== getAssigned('seer')) { seerCheckTarget = num; render(currentStep); } },
+    });
+    // 9: 女巫行动
+    s.push({ title: '女巫行动', subtitle: '第1晚 - 救人/毒人', desc: '请记录女巫的行动',
+      canProceed() { const wn = getAssigned('witch'); if (nightmareFearTarget === wn) return true; const ik = wn === killTarget; if (killTarget && !ik && witchSaveAction === null) return false; if (witchPoisonActive && witchPoisonTarget === null) return false; return true; },
+      render() {
+        const wn = getAssigned('witch');
+        if (nightmareFearTarget === wn) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫被噩梦之影恐惧，无法行动</div></div>';
+        const ik = wn === killTarget; if (ik && witchSaveAction === null) witchSaveAction = 'no-save';
+        let h = '';
+        if (killTarget) { h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人首夜刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>'; if (ik) h += '<div class="warning-note">女巫被刀，无法自救</div>'; if (!ik) { h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">'; h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>'; h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>'; } } else { h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人首夜刀人</div><div class="kill-value">空刀</div></div>'; }
+        h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">'; h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>'; h += '<div class="action-btn ' + (!witchPoisonActive && witchSaveAction !== null ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        if (witchPoisonActive) { h += renderGrid({ grayedNums: [], disabledNums: [wn], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' }); }
+        return h;
+      },
+      handleAction(act) { if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { if (nightmareFearTarget !== getAssigned('witch')) { witchPoisonTarget = num; render(currentStep); } },
+    });
+    // 10: 摄梦人梦游
+    s.push({ title: '摄梦人梦游', subtitle: '第1晚 - 梦游', desc: '请选择摄梦人选择的梦游者（梦游者免疫夜间伤害）',
+      canProceed: () => nightmareFearTarget === getAssigned('dreamweaver') || dreamTarget !== null,
+      render() {
+        if (nightmareFearTarget === getAssigned('dreamweaver')) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人被噩梦之影恐惧，无法梦游</div></div>';
+        let h = renderGrid({ grayedNums: [], selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
+        if (dreamTarget) { h += '<div class="guard-info"><div class="info-label">梦游者</div><div class="gv">' + dreamTarget + ' 号 (' + getRoleDisplay(dreamTarget) + ') 免疫夜伤</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { if (nightmareFearTarget !== getAssigned('dreamweaver')) { dreamTarget = num; render(currentStep); } },
+    });
+    // 11: 天亮
+    s.push({ title: '天亮', subtitle: '第1天', desc: '首夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        if (nightmareFearTarget) h += '<div style="margin-top:8px;font-size:14px;color:#aab">恐惧: ' + nightmareFearTarget + ' 号</div>';
+        if (dreamTarget) h += '<div style="margin-top:8px;font-size:14px;color:#9b59b6">梦游者: ' + dreamTarget + ' 号（免疫夜伤）</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+    // 12: 最终竞选人
+    s.push({ title: '最终竞选人', subtitle: '白天 - 竞选', desc: '选择最终成为警长的玩家号码',
+      canProceed: () => sheriff !== null,
+      render() { const sel = typeof sheriff === 'number' ? sheriff : null; let h = renderGrid({ grayedNums: deadPlayers, selectedNums: sel ? [sel] : undefined }); h += '<div class="action-group" style="margin-top:12px"><div class="action-btn ' + (sheriff === 'none' ? 'active' : '') + '" data-act="no-sheriff">无人留到最后（无警长）</div></div>'; return h; },
+      handleSelect(num) { sheriff = num; render(currentStep); },
+      handleAction(act) { if (act === 'no-sheriff') { sheriff = 'none'; render(currentStep); } },
+    });
+    // 13: 猎人复仇开枪
+    s.push({ title: '猎人复仇开枪', subtitle: '晨曦',
+      desc() { const h = getAssigned('hunter'); return h ? h + ' 号猎人在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      autoSkip: () => !canHunterRevenge(),
+      render() {
+        if (!canHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">猎人未被刀死，无需复仇开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: hunterRevengeTarget ? [hunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterRevengeTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人复仇开枪带走</div><div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { hunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    // 14: 白天放逐
+    s.push({ title: '白天放逐', subtitle: '第1天 - 放逐', desc: '请选择被放逐的玩家号码',
+      canProceed: () => banishedPlayer !== null,
+      render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined }); },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+    // 15: 猎人开枪
+    s.push({ title: '猎人开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ') 可以开枪，请选择目标'; },
+      canProceed: () => !banishedPlayer || !canShootAsHunter(banishedPlayer) || hunterShotTarget !== null,
+      autoSkip: () => !banishedPlayer || !canShootAsHunter(banishedPlayer),
+      render() { if (!banishedPlayer || !canShootAsHunter(banishedPlayer)) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">被放逐的玩家不是猎人，无需开枪</div></div>'; let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: hunterShotTarget ? [hunterShotTarget] : undefined, selectedClass: 'kill-target' }); if (hunterShotTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人开枪带走</div><div class="kill-value">' + hunterShotTarget + ' 号 (' + getRoleDisplay(hunterShotTarget) + ')</div></div>'; } return h; },
+      handleSelect(num) { if (num === banishedPlayer) return; hunterShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    return s;
+  }
+
+  // ─── Nightmare (梦魇) Round 2+ ─────────────────────────────
+  function buildNightmareRound2PlusSteps() {
+    const s = [];
+    const rl = '第' + round + '晚';
+    const nmNum = getAssigned('nightmare');
+    const nmDead = nmNum == null || isDead(nmNum);
+    const dwNum = getAssigned('dreamweaver');
+    const dwDead = dwNum == null || isDead(dwNum);
+    const sNum = getAssigned('seer'); const sDead = sNum == null || isDead(sNum);
+    const wNum = getAssigned('witch'); const wDead = wNum == null || isDead(wNum);
+    const wa = getAssignedAll('wolf').filter(n => !isDead(n)).length > 0;
+
+    // 1. Nightmare fear
+    s.push({ title: '噩梦之影恐惧', subtitle: rl + ' - 恐惧', desc: nmDead ? '噩梦之影已阵亡，无法恐惧' : (lastNightmareTarget != null ? lastNightmareTarget + '号是昨晚恐惧过的，今晚不能连续恐惧' : '请选择噩梦之影恐惧的目标'),
+      canProceed: () => nmDead || nightmareFearTarget !== null,
+      render() { if (nmDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">噩梦之影已阵亡，无法恐惧</div></div>'; const disabled = lastNightmareTarget != null ? [nmNum, lastNightmareTarget] : [nmNum]; return renderGrid({ grayedNums: deadPlayers, disabledNums: disabled, selectedNums: nightmareFearTarget ? [nightmareFearTarget] : undefined, selectedClass: 'learn-target' }); },
+      handleSelect(num) { if (!nmDead && num !== lastNightmareTarget) { nightmareFearTarget = num; lastNightmareTarget = num; render(currentStep); } },
+    });
+
+    // 2. Wolves kill
+    if (wa) {
+      s.push({ title: '狼人行动', subtitle: rl + ' - 刀人', desc: '请选择狼人刀人的目标号码',
+        canProceed: () => killTarget !== null,
+        render() {
+          if (nightmareBlocksKill()) { killTarget = 0; return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">噩梦之影恐惧了狼人</div><div class="warning-note">狼人阵营无法袭击（空刀）</div></div>'; }
+          let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>';
+          h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' });
+          return h;
+        },
+        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+        handleSelect(num) { killTarget = num; render(currentStep); },
+      });
+    }
+
+    // 3. Seer check
+    s.push({ title: '预言家验人', subtitle: rl + ' - 验人', desc: sDead ? '预言家已阵亡，无法查验' : (nightmareFearTarget === sNum ? '预言家被恐惧，无法查验' : '请选择预言家查验的目标'),
+      canProceed: () => sDead || nightmareFearTarget === sNum || seerCheckTarget !== null,
+      render() {
+        if (sDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">预言家已阵亡，无法查验</div></div>';
+        if (nightmareFearTarget === sNum) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">预言家被噩梦之影恐惧，无法查验</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) { h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv" style="font-size:28px">' + (isWolfFactionNum(seerCheckTarget) ? '狼人' : '好人') + '</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { if (!sDead && nightmareFearTarget !== sNum) { seerCheckTarget = num; render(currentStep); } },
+    });
+
+    // 4. Witch action
+    s.push({ title: '女巫行动', subtitle: rl + ' - 救人/毒人', desc: wDead ? '女巫已阵亡，无法行动' : (nightmareFearTarget === wNum ? '女巫被恐惧，无法行动' : '请记录女巫的行动'),
+      canProceed() {
+        if (wDead) return true;
+        if (nightmareFearTarget === wNum) return true;
+        if (witchHasSave && killTarget && wNum !== killTarget && witchSaveAction === null) return false;
+        if (witchPoisonActive && witchPoisonTarget === null) return false;
+        return true;
+      },
+      render() {
+        if (wDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫已阵亡，无法行动</div></div>';
+        if (nightmareFearTarget === wNum) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫被噩梦之影恐惧，无法行动</div></div>';
+        let h = '';
+        if (killTarget) h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
+        const wik = wNum === killTarget;
+        if (wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+        if (witchHasSave && killTarget && !wik) {
+          h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>';
+          h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">解药已使用或无目标可救</div></div>';
+        }
+        if (witchHasPoison) {
+          h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+          h += '<div class="action-btn ' + (!witchPoisonActive ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">毒药已使用</div></div>';
+        }
+        if (witchPoisonActive) h += renderGrid({ grayedNums: deadPlayers, disabledNums: [wNum], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (wDead || nightmareFearTarget === wNum) return; if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { if (!wDead && nightmareFearTarget !== wNum) { witchPoisonTarget = num; render(currentStep); } },
+    });
+
+    // 5. Dreamweaver dream
+    s.push({ title: '摄梦人梦游', subtitle: rl + ' - 梦游', desc: dwDead ? '摄梦人已阵亡，无法梦游' : (nightmareFearTarget === dwNum ? '摄梦人被恐惧，无法梦游' : '请选择摄梦人选择的梦游者（梦游者免疫夜间伤害）'),
+      canProceed: () => dwDead || nightmareFearTarget === dwNum || dreamTarget !== null,
+      render() {
+        if (dwDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人已阵亡，无法梦游</div></div>';
+        if (nightmareFearTarget === dwNum) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人被噩梦之影恐惧，无法梦游</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
+        if (dreamTarget) { h += '<div class="guard-info"><div class="info-label">梦游者</div><div class="gv">' + dreamTarget + ' 号 (' + getRoleDisplay(dreamTarget) + ') 免疫夜伤</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { if (!dwDead && nightmareFearTarget !== dwNum) { dreamTarget = num; render(currentStep); } },
+    });
+
+    // 6. Dawn
+    s.push({ title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        if (nightmareFearTarget) h += '<div style="margin-top:8px;font-size:14px;color:#aab">恐惧: ' + nightmareFearTarget + ' 号</div>';
+        if (dreamTarget) h += '<div style="margin-top:8px;font-size:14px;color:#9b59b6">梦游者: ' + dreamTarget + ' 号（免疫夜伤）</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+
+    // 7. Hunter revenge shot
+    s.push({ title: '猎人复仇开枪', subtitle: '晨曦',
+      desc() { const h = getAssigned('hunter'); return h ? h + ' 号猎人在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      autoSkip: () => !canHunterRevenge(),
+      render() {
+        if (!canHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">猎人未被刀死，无需复仇开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: hunterRevengeTarget ? [hunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterRevengeTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人复仇开枪带走</div><div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { hunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+
+    // 8. Day banishment
+    s.push({ title: '白天放逐', subtitle: '第' + round + '天 - 投票', desc: '请选择被放逐的玩家号码',
+      canProceed: () => banishedPlayer !== null,
+      render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined }); },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+
+    // 9. Hunter shot
+    s.push({ title: '猎人开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ') 可以开枪，请选择目标'; },
+      canProceed: () => !banishedPlayer || !canShootAsHunter(banishedPlayer) || hunterShotTarget !== null,
+      autoSkip: () => !banishedPlayer || !canShootAsHunter(banishedPlayer),
+      render() { if (!banishedPlayer || !canShootAsHunter(banishedPlayer)) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">被放逐的玩家不是猎人，无需开枪</div></div>'; let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: hunterShotTarget ? [hunterShotTarget] : undefined, selectedClass: 'kill-target' }); if (hunterShotTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人开枪带走</div><div class="kill-value">' + hunterShotTarget + ' 号 (' + getRoleDisplay(hunterShotTarget) + ')</div></div>'; } return h; },
+      handleSelect(num) { if (num === banishedPlayer) return; hunterShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+
+    return s;
+  }
+
   // ─── Navigation ─────────────────────────────────────────────
   function render(idx) {
     currentStep = idx;
@@ -2646,7 +3128,7 @@ header .subtitle {
       round: round,
       night: {
         wolfKill: killTarget,
-        mechLearn: learnTarget,
+        mechLearn: round === 1 ? learnTarget : null,
         mechNightAction: mechNightAction ? { type: mechNightAction.type, target: mechNightAction.target } : null,
         mechExtraKill: mechExtraKill,
         seerCheck: seerCheckTarget,
@@ -2654,6 +3136,8 @@ header .subtitle {
         witchPoison: witchPoisonTarget,
         guardProtect: guardProtectTarget,
         muteTarget: mechNightAction && mechNightAction.type === 'mute' ? mechNightAction.target : null,
+        dreamTarget: dreamTarget,
+        nightmareFearTarget: nightmareFearTarget,
         deaths: nightDeaths,
       },
       day: null
@@ -2669,7 +3153,12 @@ header .subtitle {
     if (hunterShotTarget && !nightDeaths.includes(hunterShotTarget)) dayDeaths.push(hunterShotTarget);
     if (hunterRevengeTarget && !nightDeaths.includes(hunterRevengeTarget)) dayDeaths.push(hunterRevengeTarget);
     if (mechChainShotTarget && !nightDeaths.includes(mechChainShotTarget)) dayDeaths.push(mechChainShotTarget);
+    if (mechHunterRevengeTarget && !nightDeaths.includes(mechHunterRevengeTarget)) dayDeaths.push(mechHunterRevengeTarget);
     if (knightDuelTarget && !nightDeaths.includes(knightDuelTarget)) dayDeaths.push(knightDuelTarget);
+    if (boardType === 'nightmare') {
+      const dw = getAssigned('dreamweaver');
+      if (dw != null && dreamTarget != null && dreamTarget !== 0 && dayDeaths.includes(dw) && !dayDeaths.includes(dreamTarget)) dayDeaths.push(dreamTarget);
+    }
     const existing = gameLog.find(e => e.round === round);
     if (existing) {
       existing.day = {
@@ -2682,6 +3171,7 @@ header .subtitle {
         hunterShot: hunterShotTarget,
         hunterRevenge: hunterRevengeTarget,
         mechChainShot: mechChainShotTarget,
+        mechHunterRevenge: mechHunterRevengeTarget,
         knightDuel: knightDuelTarget,
         wolfSuicide: wolfSuicide,
         deaths: dayDeaths,
@@ -2698,6 +3188,14 @@ header .subtitle {
     if (hunterShotTarget) addDeath(hunterShotTarget);
     if (hunterRevengeTarget) addDeath(hunterRevengeTarget);
     if (mechChainShotTarget) addDeath(mechChainShotTarget);
+    if (mechHunterRevengeTarget) addDeath(mechHunterRevengeTarget);
+    // 摄梦人白天出局 → 梦游者同出 (nightmare board)
+    if (boardType === 'nightmare') {
+      const dw = getAssigned('dreamweaver');
+      if (dw != null && dreamTarget != null && dreamTarget !== 0 && isDead(dw) && !isDead(dreamTarget)) {
+        addDeath(dreamTarget);
+      }
+    }
     // Sync permanent potion state from this round's actions
     if (witchSaveAction === 'save') witchHasSave = false;
     if (witchPoisonTarget) witchHasPoison = false;
@@ -3161,7 +3659,7 @@ header .subtitle {
       logging: false,
     }).then(function(canvas) {
       var link = document.createElement('a');
-      var boardName = boardType === 'wolfking' ? '狼王守卫' : boardType === 'whitewolfking' ? '白狼王' : '机械狼';
+      var boardName = boardType === 'wolfking' ? '狼王守卫' : boardType === 'whitewolfking' ? '白狼王' : boardType === 'muteElder' ? '禁言长老' : boardType === 'nightmare' ? '梦魇' : '机械狼';
       var now = new Date();
       var timeStr = ('0' + now.getHours()).slice(-2) + '-' + ('0' + now.getMinutes()).slice(-2);
       link.download = boardName + '_' + timeStr + '.png';
@@ -3179,12 +3677,15 @@ header .subtitle {
     assignments = {}; killTarget = null; learnTarget = null;
     seerCheckTarget = null; witchSaveAction = null; witchPoisonActive = false;
     witchPoisonTarget = null; guardProtectTarget = null; lastGuardTarget = null; lastMuteTarget = null;
-    banishedPlayer = null; hunterShotTarget = null; hunterRevengeTarget = null; wolfKingShotTarget = null; whiteWolfKingShotTarget = null; mechChainShotTarget = null;
+    banishedPlayer = null; hunterShotTarget = null; hunterRevengeTarget = null; wolfKingShotTarget = null; whiteWolfKingShotTarget = null; mechChainShotTarget = null; mechHunterRevengeTarget = null;
     onBoard = []; sheriff = null; sheriffVoters = [];
     deadPlayers = []; round = 1;
     witchHasSave = true; witchHasPoison = true;
-    mechNightAction = null; mechHasUsedPoison = false; mechExtraKill = null; mechExtraKillUsed = false;
+    mechNightAction = null; mechHasUsedPoison = false; mechActionSkipped = false; mechExtraKill = null; mechExtraKillUsed = false;
     knightDuelTarget = null;
+    dreamTarget = null;
+    nightmareFearTarget = null;
+    lastNightmareTarget = null;
     gameWinner = null;
     roundStartDeadCount = 0;
     gameLog = [];
@@ -3212,7 +3713,7 @@ header .subtitle {
         const acts = [];
         if (entry.night.wolfKill) acts.push('狼刀 <span class="act">' + entry.night.wolfKill + '号</span>');
       if (entry.night.mechLearn) acts.push('机械狼学 <span class="act">' + entry.night.mechLearn + '号</span>');
-      if (entry.night.mechNightAction) {
+      if (entry.night.mechNightAction && entry.night.mechNightAction.type !== 'mute') {
         const ma = entry.night.mechNightAction;
         const maLabel = ma.type === 'shield' ? '守' : ma.type === 'poison' ? '毒' : '验';
         acts.push('机械狼' + maLabel + ' <span class="act">' + ma.target + '号</span>');
@@ -3224,6 +3725,8 @@ header .subtitle {
       if (entry.night.witchPoison) acts.push('女巫毒 <span class="act">' + entry.night.witchPoison + '号</span>');
       if (entry.night.guardProtect) acts.push('守卫守 <span class="act">' + entry.night.guardProtect + '号</span>');
       if (entry.night.muteTarget) acts.push('禁言长老禁言 <span class="act">' + entry.night.muteTarget + '号</span>');
+      if (entry.night.dreamTarget) acts.push('摄梦人梦游 <span class="act">' + entry.night.dreamTarget + '号</span>');
+      if (entry.night.nightmareFearTarget) acts.push('噩梦之影恐惧 <span class="act">' + entry.night.nightmareFearTarget + '号</span>');
       h += (acts.length ? acts.join('; ') : '无行动');
       h += '</div>';
       if (entry.night.deaths && entry.night.deaths.length > 0) {
@@ -3247,6 +3750,7 @@ header .subtitle {
       if (entry.day.hunterShot) dActs.push('猎人开枪 <span class="act">' + entry.day.hunterShot + '号</span>');
       if (entry.day.hunterRevenge) dActs.push('猎人复仇开枪 <span class="act">' + entry.day.hunterRevenge + '号</span>');
       if (entry.day.mechChainShot) dActs.push('机械狼猎人开枪 <span class="act">' + entry.day.mechChainShot + '号</span>');
+      if (entry.day.mechHunterRevenge) dActs.push('机械狼猎人开枪 <span class="act">' + entry.day.mechHunterRevenge + '号</span>');
       if (entry.day.wolfKingShot) dActs.push('狼王开枪 <span class="act">' + entry.day.wolfKingShot + '号</span>');
       if (entry.day.whiteWolfKingShot) dActs.push('白狼王开枪 <span class="act">' + entry.day.whiteWolfKingShot + '号</span>');
 	      if (entry.day.wolfSuicide && typeof entry.day.wolfSuicide === 'number') dActs.push('狼人自爆 <span class="act">' + entry.day.wolfSuicide + '号</span>');
@@ -3274,73 +3778,18 @@ header .subtitle {
     const mech   = getAssigned('mech');
     const wolfKing = getAssigned('wolfKing');
     const whiteWolfKing = getAssigned('whiteWolfKing');
+    const dreamweaver = getAssigned('dreamweaver');
+    const nightmare = getAssigned('nightmare');
     const allRolesDone = boardType === 'wolfking'
       ? seer && witch && hunter && guard && wolves.length === 3 && wolfKing
       : boardType === 'whitewolfking'
       ? seer && witch && hunter && guard && wolves.length === 3 && whiteWolfKing
+      : boardType === 'nightmare'
+      ? seer && witch && hunter && dreamweaver && wolves.length === 3 && nightmare
       : seer && witch && hunter && guard && wolves.length === 3 && mech;
     const villagers = getAssignedAll('villager');
 
     let html = '<div class="result-section">';
-
-    if (killTarget) {
-      html += '<div class="kill-info"><div class="kill-label">小狼首夜刀人</div>'
-           + '<div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
-    }
-    if (boardType === 'mech' && learnTarget) {
-      html += '<div class="learn-info"><div class="learn-label">机械狼学习目标</div>'
-           + '<div class="learn-value">' + learnTarget + ' 号 (' + getRoleDisplay(learnTarget) + ')</div></div>';
-    }
-    if (seerCheckTarget) {
-      html += '<div class="check-info"><div class="info-label">预言家查验</div>'
-           + '<div class="cv">' + seerCheckTarget + ' 号 (' + getRoleDisplayFull(seerCheckTarget) + ')</div></div>';
-    }
-    if (witchSaveAction) {
-      html += '<div class="save-info"><div class="info-label">女巫救人</div>'
-           + '<div class="sv">' + (witchSaveAction === 'save' ? '救了 ' + killTarget + ' 号' : '未救人') + '</div></div>';
-    }
-    if (witchPoisonActive && witchPoisonTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">女巫毒人</div>'
-           + '<div class="kill-value">' + witchPoisonTarget + ' 号 (' + getRoleDisplay(witchPoisonTarget) + ')</div></div>';
-    }
-    if (guardProtectTarget) {
-      html += '<div class="guard-info"><div class="info-label">守卫守护</div>'
-           + '<div class="gv">' + guardProtectTarget + ' 号 (' + getRoleDisplay(guardProtectTarget) + ')</div></div>';
-    }
-    if (sheriff) {
-      html += '<div class="check-info" style="border-color:rgba(212,168,83,0.3)"><div class="info-label">警长</div>'
-           + '<div class="cv" style="color:#d4a853">' + (sheriff === 'none' ? '无警长' : sheriff + ' 号 (' + getRoleDisplay(sheriff) + ')') + '</div></div>';
-    }
-
-    if (banishedPlayer) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">白天放逐</div>'
-           + '<div class="kill-value">' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ')</div></div>';
-    }
-    if (hunterShotTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">猎人开枪</div>'
-           + '<div class="kill-value">' + hunterShotTarget + ' 号 (' + getRoleDisplay(hunterShotTarget) + ')</div></div>';
-    }
-    if (wolfKingShotTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">狼王开枪</div>'
-           + '<div class="kill-value">' + wolfKingShotTarget + ' 号 (' + getRoleDisplay(wolfKingShotTarget) + ')</div></div>';
-    }
-    if (whiteWolfKingShotTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">白狼王开枪</div>'
-           + '<div class="kill-value">' + whiteWolfKingShotTarget + ' 号 (' + getRoleDisplay(whiteWolfKingShotTarget) + ')</div></div>';
-    }
-    if (mechChainShotTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">机械狼猎人开枪</div>'
-           + '<div class="kill-value">' + mechChainShotTarget + ' 号 (' + getRoleDisplay(mechChainShotTarget) + ')</div></div>';
-    }
-    if (boardType === 'muteElder' && knightDuelTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(52,152,219,0.4)"><div class="kill-label">骑士决斗</div>'
-           + '<div class="kill-value">' + knightDuelTarget + ' 号 (' + getRoleDisplay(knightDuelTarget) + ') — '
-           + (isWolfFactionNum(knightDuelTarget) ? '骑士胜利' : '骑士出局') + '</div></div>';
-    }
-    if (hunterRevengeTarget) {
-      html += '<div class="kill-info" style="border-color:rgba(231,76,60,0.4)"><div class="kill-label">猎人复仇开枪</div>'
-           + '<div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>';
-    }
 
     html += '<div class="result-summary">';
     if (boardType === 'mech') {
@@ -3416,6 +3865,11 @@ header .subtitle {
       html += '<div class="rule-item"><span class="rule-desc">机械狼毒到神</span><span class="rule-score">+2</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">机械狼守到女巫毒药</span><span class="rule-score">+2</span></div>';
     }
+    if (boardType === 'nightmare') {
+      html += '<div class="rule-item"><span class="rule-desc">摄梦人梦游免死</span><span class="rule-score">+2</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到神</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到狼人</span><span class="rule-score negative">-1</span></div>';
+    }
     html += '<div class="rule-item"><span class="rule-desc">预言家验到狼人</span><span class="rule-score">+1</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫救起好人</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫毒到狼人</span><span class="rule-score">+2</span></div>';
@@ -3467,7 +3921,38 @@ header .subtitle {
     document.getElementById('stateOverlay').classList.add('open');
   }
 
+  function openRoleInfo() {
+    const order = Object.keys(ROLES);
+    const groups = [
+      { key: 'god',  title: '🌙 好人阵营 · 神职', cls: 'role-tag-god' },
+      { key: 'good', title: '👥 好人阵营 · 平民', cls: 'role-tag-good' },
+      { key: 'wolf', title: '🐺 狼人阵营',        cls: 'role-tag-wolf' },
+    ];
+    let html = '<div class="state-overlay-inner"><div class="result-section">';
+    html += '<h2 style="font-size:18px;font-weight:700;color:#d4a853;margin-bottom:16px;text-align:center">角色简介</h2>';
+    html += '<div class="rules-section">';
+    for (const g of groups) {
+      const roles = order.filter(k => ROLES[k] && ROLES[k].type === g.key);
+      if (roles.length === 0) continue;
+      html += '<div class="rule-category">';
+      html += '<div class="rule-cat-title">' + g.title + '</div>';
+      for (const k of roles) {
+        const r = ROLES[k];
+        const skill = ROLE_SKILLS[k] || '';
+        html += '<div class="role-info-card">';
+        html += '<div class="role-info-head"><span class="role-info-name">' + r.label + '</span><span class="role-info-count ' + g.cls + '">×' + r.count + '</span></div>';
+        if (skill) html += '<div class="role-info-skill">' + skill + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div></div></div>';
+    document.getElementById('overlayContent').innerHTML = html;
+    document.getElementById('stateOverlay').classList.add('open');
+  }
+
   document.getElementById('infoBtn').addEventListener('click', openOverlay);
+  document.getElementById('roleInfoBtn').addEventListener('click', openRoleInfo);
   document.getElementById('rulesBtn').addEventListener('click', openRules);
   document.getElementById('overlayClose').addEventListener('click', function() {
     document.getElementById('stateOverlay').classList.remove('open');
@@ -3664,13 +4149,13 @@ header .subtitle {
     let wolfNums = [];
     for (let i = 1; i <= TOTAL; i++) {
       const rk = assignments[i];
-      if ((rk === 'wolf' || rk === 'wolfKing' || rk === 'whiteWolfKing') && !isDead(i)) wolfNums.push(i);
+      if ((rk === 'wolf' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare') && !isDead(i)) wolfNums.push(i);
     }
     for (const num of wolfNums) {
       const rk = assignments[num];
       const ri = ROLES[rk];
       let label = ri ? ri.label : '';
-      let display = num + '<div class="role-label" style="color:' + (rk === 'mech' || rk === 'wolfKing' ? '#9b59b6' : '#e74c3c') + '">' + label + '</div>';
+      let display = num + '<div class="role-label" style="color:' + (rk === 'mech' || rk === 'wolfKing' || rk === 'nightmare' ? '#9b59b6' : '#e74c3c') + '">' + label + '</div>';
       html += '<div class="number-btn" data-num="' + num + '">' + display + '</div>';
     }
     document.getElementById('suicideGrid').innerHTML = html;
@@ -3811,8 +4296,8 @@ header .subtitle {
     if (board === boardType) return;
     document.getElementById('boardSelectOverlay').classList.remove('open');
     initRoles(board);
-    document.getElementById('boardTitle').textContent = board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : '机械狼';
-    document.title = '狼人杀(' + (board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : '机械狼') + ')';
+    document.getElementById('boardTitle').textContent = board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : board === 'nightmare' ? '梦魇' : '机械狼';
+    document.title = '狼人杀(' + (board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : board === 'nightmare' ? '梦魇' : '机械狼') + ')';
     resetApp();
   }
 
