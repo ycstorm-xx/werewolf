@@ -942,7 +942,7 @@ header .subtitle {
     guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
     knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
-    dreamweaver: '每晚选择一名梦游者，梦游者免疫夜间伤害；若摄梦人出局，梦游者也会一同出局。',
+    dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
     wolfKing: '被放逐或被猎人开枪带走时，可开枪带走一名玩家。',
     whiteWolfKing: '自爆出局后，可开枪带走一名好人玩家。',
@@ -997,6 +997,8 @@ header .subtitle {
   let mechExtraKillUsed = false; // ensures extra kill only triggers once
   let knightDuelTarget = null;   // knight's duel target (muteElder board)
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
+  let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
+  let dreamNoSkillDead = [];     // 因梦游出局/跟随摄梦人出局而无技能的玩家（本回合）
   let nightmareFearTarget = null; // 噩梦之影恐惧目标 (nightmare board)
   let lastNightmareTarget = null; // 上一晚恐惧目标（不能连续恐惧同一人）
   let gameWinner = null;
@@ -1064,6 +1066,10 @@ header .subtitle {
     // Hunter was poisoned → cannot shoot
     if (witchPoisonTarget === hunter) return false;
     if (mechNightAction && mechNightAction.type === 'poison' && mechNightAction.target === hunter) return false;
+    // 猎人被噩梦之影恐惧 → 当晚无法开夜枪
+    if (nightmareFearTarget === hunter) return false;
+    // 猎人因梦游出局/跟随摄梦人出局 → 无技能，不能开枪
+    if (dreamNoSkillDead.indexOf(hunter) >= 0) return false;
     return killTarget === hunter;
   }
   function canMechHunterRevenge() {
@@ -1343,6 +1349,7 @@ header .subtitle {
     knightDuelTarget = null;
     dreamTarget = null;
     nightmareFearTarget = null;
+    dreamNoSkillDead = [];
     wolfSuicide = null;
     isDayPhase = false;
   }
@@ -1352,14 +1359,20 @@ header .subtitle {
     while (deadPlayers.length > roundStartDeadCount) {
       deadPlayers.pop();
     }
+    // 清空本回合“无技能出局”标记（梦游出局 / 跟随摄梦人出局）
+    dreamNoSkillDead = [];
+    const dwNum = boardType === 'nightmare' ? getAssigned('dreamweaver') : null;
+    const dwFeared = boardType === 'nightmare' && nightmareFearTarget === dwNum;
     const dreamer = boardType === 'nightmare' ? dreamTarget : null;
     const dreamerImmune = dreamer != null && dreamer !== 0;
-    const dreamweaverNum = boardType === 'nightmare' ? getAssigned('dreamweaver') : null;
     const fearBlocksKill = nightmareBlocksKill();
     const guardTarget = guardProtectTarget;
     const mechShield = mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
     // 机械狼学狼人、作为最后一只狼首次双刀时，第一刀无视守卫守护
     const mechFirstKillPierces = isMechDoubleKill();
+    // 连续两晚梦游同一人 → 梦游出局（无技能）；摄梦人被恐惧则中断，不触发
+    const consecutiveDreamOut = boardType === 'nightmare' && !dwFeared && dreamerImmune && dreamer === lastDreamTarget;
+
     if (killTarget) {
       const isGuarded = !mechFirstKillPierces && killTarget === guardTarget;
       const isSaved = witchSaveAction === 'save';
@@ -1385,9 +1398,15 @@ header .subtitle {
       }
     }
     if (mechNightAction && mechNightAction.type === 'poison') addDeath(mechNightAction.target);
-    // 摄梦人出局 → 梦游者同出
-    if (boardType === 'nightmare' && dreamweaverNum != null && isDead(dreamweaverNum) && dreamerImmune && !isDead(dreamer) && dreamer !== dreamweaverNum) {
+    // 连续两晚梦游 → 梦游者梦游出局（无技能）
+    if (consecutiveDreamOut) {
       addDeath(dreamer);
+      if (dreamNoSkillDead.indexOf(dreamer) < 0) dreamNoSkillDead.push(dreamer);
+    }
+    // 摄梦人死于夜间伤害 → 当晚梦游者跟随出局（无技能）
+    if (boardType === 'nightmare' && dwNum != null && isDead(dwNum) && dreamerImmune && !isDead(dreamer) && dreamer !== dwNum) {
+      addDeath(dreamer);
+      if (dreamNoSkillDead.indexOf(dreamer) < 0) dreamNoSkillDead.push(dreamer);
     }
   }
 
@@ -2854,15 +2873,16 @@ header .subtitle {
       handleSelect(num) { if (nightmareFearTarget !== getAssigned('witch')) { witchPoisonTarget = num; render(currentStep); } },
     });
     // 10: 摄梦人梦游
-    s.push({ title: '摄梦人梦游', subtitle: '第1晚 - 梦游', desc: '请选择摄梦人选择的梦游者（梦游者免疫夜间伤害）',
+    s.push({ title: '摄梦人梦游', subtitle: '第1晚 - 梦游', desc: '请选择摄梦人的梦游目标（必须发动，不可选自己；梦游者免疫夜间伤害）',
       canProceed: () => nightmareFearTarget === getAssigned('dreamweaver') || dreamTarget !== null,
       render() {
-        if (nightmareFearTarget === getAssigned('dreamweaver')) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人被噩梦之影恐惧，无法梦游</div></div>';
-        let h = renderGrid({ grayedNums: [], selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
+        const dw = getAssigned('dreamweaver');
+        if (nightmareFearTarget === dw) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人被噩梦之影恐惧，无法梦游</div></div>';
+        let h = renderGrid({ grayedNums: [], disabledNums: dw ? [dw] : [], selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
         if (dreamTarget) { h += '<div class="guard-info"><div class="info-label">梦游者</div><div class="gv">' + dreamTarget + ' 号 (' + getRoleDisplay(dreamTarget) + ') 免疫夜伤</div></div>'; }
         return h;
       },
-      handleSelect(num) { if (nightmareFearTarget !== getAssigned('dreamweaver')) { dreamTarget = num; render(currentStep); } },
+      handleSelect(num) { if (nightmareFearTarget !== getAssigned('dreamweaver') && num !== getAssigned('dreamweaver')) { dreamTarget = num; render(currentStep); } },
     });
     // 11: 天亮
     s.push({ title: '天亮', subtitle: '第1天', desc: '首夜行动结算',
@@ -3006,16 +3026,19 @@ header .subtitle {
     });
 
     // 5. Dreamweaver dream
-    s.push({ title: '摄梦人梦游', subtitle: rl + ' - 梦游', desc: dwDead ? '摄梦人已阵亡，无法梦游' : (nightmareFearTarget === dwNum ? '摄梦人被恐惧，无法梦游' : '请选择摄梦人选择的梦游者（梦游者免疫夜间伤害）'),
+    s.push({ title: '摄梦人梦游', subtitle: rl + ' - 梦游', desc: dwDead ? '摄梦人已阵亡，无法梦游' : (nightmareFearTarget === dwNum ? '摄梦人被恐惧，无法梦游' : '请选择梦游目标（必须发动，不可选自己；连续两晚同一人会梦游出局）'),
       canProceed: () => dwDead || nightmareFearTarget === dwNum || dreamTarget !== null,
       render() {
         if (dwDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人已阵亡，无法梦游</div></div>';
         if (nightmareFearTarget === dwNum) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">摄梦人被噩梦之影恐惧，无法梦游</div></div>';
-        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
-        if (dreamTarget) { h += '<div class="guard-info"><div class="info-label">梦游者</div><div class="gv">' + dreamTarget + ' 号 (' + getRoleDisplay(dreamTarget) + ') 免疫夜伤</div></div>'; }
+        let h = renderGrid({ grayedNums: deadPlayers, disabledNums: [dwNum], selectedNums: dreamTarget ? [dreamTarget] : undefined, selectedClass: 'learn-target' });
+        if (dreamTarget) {
+          h += '<div class="guard-info"><div class="info-label">梦游者</div><div class="gv">' + dreamTarget + ' 号 (' + getRoleDisplay(dreamTarget) + ') 免疫夜伤</div></div>';
+          if (dreamTarget === lastDreamTarget) h += '<div class="warning-note">连续两晚梦游同一人，' + dreamTarget + ' 号将梦游出局（无技能）</div>';
+        }
         return h;
       },
-      handleSelect(num) { if (!dwDead && nightmareFearTarget !== dwNum) { dreamTarget = num; render(currentStep); } },
+      handleSelect(num) { if (!dwDead && nightmareFearTarget !== dwNum && num !== dwNum) { dreamTarget = num; render(currentStep); } },
     });
 
     // 6. Dawn
@@ -3155,10 +3178,6 @@ header .subtitle {
     if (mechChainShotTarget && !nightDeaths.includes(mechChainShotTarget)) dayDeaths.push(mechChainShotTarget);
     if (mechHunterRevengeTarget && !nightDeaths.includes(mechHunterRevengeTarget)) dayDeaths.push(mechHunterRevengeTarget);
     if (knightDuelTarget && !nightDeaths.includes(knightDuelTarget)) dayDeaths.push(knightDuelTarget);
-    if (boardType === 'nightmare') {
-      const dw = getAssigned('dreamweaver');
-      if (dw != null && dreamTarget != null && dreamTarget !== 0 && dayDeaths.includes(dw) && !dayDeaths.includes(dreamTarget)) dayDeaths.push(dreamTarget);
-    }
     const existing = gameLog.find(e => e.round === round);
     if (existing) {
       existing.day = {
@@ -3189,11 +3208,14 @@ header .subtitle {
     if (hunterRevengeTarget) addDeath(hunterRevengeTarget);
     if (mechChainShotTarget) addDeath(mechChainShotTarget);
     if (mechHunterRevengeTarget) addDeath(mechHunterRevengeTarget);
-    // 摄梦人白天出局 → 梦游者同出 (nightmare board)
+    // 追踪摄梦人连续梦游（被恐惧 / 死亡则中断，需重新累计）
     if (boardType === 'nightmare') {
       const dw = getAssigned('dreamweaver');
-      if (dw != null && dreamTarget != null && dreamTarget !== 0 && isDead(dw) && !isDead(dreamTarget)) {
-        addDeath(dreamTarget);
+      const dwFeared = nightmareFearTarget === dw;
+      if (dw != null && !isDead(dw) && !dwFeared && dreamTarget != null && dreamTarget !== 0) {
+        lastDreamTarget = dreamTarget;
+      } else {
+        lastDreamTarget = null;
       }
     }
     // Sync permanent potion state from this round's actions
@@ -3684,6 +3706,8 @@ header .subtitle {
     mechNightAction = null; mechHasUsedPoison = false; mechActionSkipped = false; mechExtraKill = null; mechExtraKillUsed = false;
     knightDuelTarget = null;
     dreamTarget = null;
+    lastDreamTarget = null;
+    dreamNoSkillDead = [];
     nightmareFearTarget = null;
     lastNightmareTarget = null;
     gameWinner = null;
