@@ -1180,13 +1180,15 @@ header .subtitle {
     const wwkn = getAssigned('whiteWolfKing');
     const aliveWolves = getAssignedAll('wolf').filter(n => !isDead(n));
     const wwkAliveScore = getAssigned('whiteWolfKing') != null && !isDead(getAssigned('whiteWolfKing'));
-    // Wolf kill: target died → alive wolves +1 each
+    // Wolf kill: target died → each alive wolf +1（被刀死的玩家本人不计分）
     if (killTarget && isDead(killTarget)) {
-      awardScore(killTarget, 1, '刀人出局');
       aliveWolves.forEach(n => awardScore(n, 1, '刀人出局'));
       if (mn != null && !isDead(mn)) awardScore(mn, 1, '刀人出局');
       if (wkn != null && !isDead(wkn)) awardScore(wkn, 1, '刀人出局');
       if (wwkn != null && !isDead(wwkn)) awardScore(wwkn, 1, '刀人出局');
+      // 噩梦之影作为狼队最后一人执刀（小狼全出局时）也计入刀人出局
+      const nmN = getAssigned('nightmare');
+      if (boardType === 'nightmare' && aliveWolves.length === 0 && nmN != null && !isDead(nmN)) awardScore(nmN, 1, '刀人出局');
     }
     // Mech extra kill (mech board only)
     if (ROLES.mech && mechExtraKill && isDead(mechExtraKill) && mn != null) {
@@ -2821,17 +2823,17 @@ header .subtitle {
       render() { const sel = getAssigned('nightmare'); return renderGrid({ grayedNums: grayedExcept('nightmare'), selectedNums: sel ? [sel] : undefined }); },
       handleSelect(num) { const p = getAssigned('nightmare'); if (p) unassign(p); assign(num, 'nightmare'); render(currentStep); },
     });
-    // 5: 狼人
-    s.push({ title: '狼人睁眼', subtitle: '第1晚', desc: '请选择3名狼人的号码',
-      canProceed: () => getAssignedAll('wolf').length === 3,
-      render() { const sel = getAssignedAll('wolf'); const left = 3 - sel.length; return renderGrid({ grayedNums: grayedExcept('wolf'), selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名狼人' : '已选3名狼人' }); },
-      handleSelect(num) { const cur = getAssignedAll('wolf'); const idx = cur.indexOf(num); if (idx >= 0) unassign(num); else if (cur.length < 3) assign(num, 'wolf'); if (getAssignedAll('wolf').length === 3) { const an = new Set(Object.keys(assignments).map(Number)); for (let i = 1; i <= TOTAL; i++) { if (!an.has(i)) assignments[i] = 'villager'; } } render(currentStep); },
-    });
-    // 6: 噩梦之影恐惧
+    // 5: 噩梦之影恐惧（睁眼后直接选择，之后才是狼人睁眼）
     s.push({ title: '噩梦之影恐惧', subtitle: '第1晚 - 恐惧', desc: '请选择噩梦之影恐惧的目标（该玩家当夜无法行动；恐惧到狼人则狼队无法袭击）',
       canProceed: () => nightmareFearTarget !== null,
       render() { const nmNum = getAssigned('nightmare'); return renderGrid({ grayedNums: [], disabledNums: nmNum ? [nmNum] : [], selectedNums: nightmareFearTarget ? [nightmareFearTarget] : undefined, selectedClass: 'learn-target' }); },
       handleSelect(num) { nightmareFearTarget = num; lastNightmareTarget = num; render(currentStep); },
+    });
+    // 6: 狼人
+    s.push({ title: '狼人睁眼', subtitle: '第1晚', desc: '请选择3名狼人的号码',
+      canProceed: () => getAssignedAll('wolf').length === 3,
+      render() { const sel = getAssignedAll('wolf'); const left = 3 - sel.length; return renderGrid({ grayedNums: grayedExcept('wolf'), selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名狼人' : '已选3名狼人' }); },
+      handleSelect(num) { const cur = getAssignedAll('wolf'); const idx = cur.indexOf(num); if (idx >= 0) unassign(num); else if (cur.length < 3) assign(num, 'wolf'); if (getAssignedAll('wolf').length === 3) { const an = new Set(Object.keys(assignments).map(Number)); for (let i = 1; i <= TOTAL; i++) { if (!an.has(i)) assignments[i] = 'villager'; } } render(currentStep); },
     });
     // 7: 狼人刀人
     s.push({ title: '狼人行动', subtitle: '第1晚 - 刀人', desc: '请选择狼人刀人的目标号码',
@@ -2951,7 +2953,11 @@ header .subtitle {
     const dwDead = dwNum == null || isDead(dwNum);
     const sNum = getAssigned('seer'); const sDead = sNum == null || isDead(sNum);
     const wNum = getAssigned('witch'); const wDead = wNum == null || isDead(wNum);
-    const wa = getAssignedAll('wolf').filter(n => !isDead(n)).length > 0;
+    const aliveWolves = getAssignedAll('wolf').filter(n => !isDead(n));
+    const nmAlive = !nmDead;
+    // 噩梦之影属于狼阵营：小狼全出局后，由噩梦之影继续执狼刀
+    const wa = aliveWolves.length > 0 || nmAlive;
+    const onlyNmAlive = nmAlive && aliveWolves.length === 0;
 
     // 1. Nightmare fear
     s.push({ title: '噩梦之影恐惧', subtitle: rl + ' - 恐惧', desc: nmDead ? '噩梦之影已阵亡，无法恐惧' : (lastNightmareTarget != null ? lastNightmareTarget + '号是昨晚恐惧过的，今晚不能连续恐惧' : '请选择噩梦之影恐惧的目标'),
@@ -2960,9 +2966,9 @@ header .subtitle {
       handleSelect(num) { if (!nmDead && num !== lastNightmareTarget) { nightmareFearTarget = num; lastNightmareTarget = num; render(currentStep); } },
     });
 
-    // 2. Wolves kill
+    // 2. Wolf kill（小狼全出局时，由噩梦之影执刀）
     if (wa) {
-      s.push({ title: '狼人行动', subtitle: rl + ' - 刀人', desc: '请选择狼人刀人的目标号码',
+      s.push({ title: onlyNmAlive ? '噩梦之影刀人' : '狼人行动', subtitle: rl + ' - 刀人', desc: onlyNmAlive ? '噩梦之影是狼队最后一人，请选择刀人目标' : '请选择狼人刀人的目标号码',
         canProceed: () => killTarget !== null,
         render() {
           if (nightmareBlocksKill()) { killTarget = 0; return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">噩梦之影恐惧了狼人</div><div class="warning-note">狼人阵营无法袭击（空刀）</div></div>'; }
@@ -3230,6 +3236,25 @@ header .subtitle {
     render(0);
   }
 
+  // MVP = 行动分最高（>0）；平分时优先胜方；多名则共同 MVP
+  function computeMvps() {
+    let maxScore = 0;
+    for (let i = 1; i <= TOTAL; i++) {
+      if ((scores[i] || 0) > maxScore) maxScore = scores[i] || 0;
+    }
+    const candidates = [];
+    for (let i = 1; i <= TOTAL; i++) {
+      if ((scores[i] || 0) === maxScore && maxScore > 0) candidates.push(i);
+    }
+    if (candidates.length <= 1) return candidates;
+    const winningTeamTypes = gameWinner === 'good' ? ['god', 'good'] : ['wolf'];
+    const mvps = candidates.filter(n => {
+      const rk = assignments[n];
+      return rk && ROLES[rk] && winningTeamTypes.includes(ROLES[rk].type);
+    });
+    return mvps.length > 0 ? mvps : candidates;
+  }
+
   function showGameOver(winner) {
     gameWinner = winner;
     document.getElementById('progressFill').style.width = '100%';
@@ -3246,27 +3271,7 @@ header .subtitle {
     document.getElementById('knightDuelOverlay').classList.remove('open');
 
     // ─── MVP calculation ──────────────────────────────────────────
-    let maxScore = 0;
-    for (let i = 1; i <= TOTAL; i++) {
-      if ((scores[i] || 0) > maxScore) maxScore = scores[i] || 0;
-    }
-    let mvpCandidates = [];
-    for (let i = 1; i <= TOTAL; i++) {
-      if ((scores[i] || 0) === maxScore && maxScore > 0) mvpCandidates.push(i);
-    }
-    let mvps = [];
-    if (mvpCandidates.length === 1) {
-      mvps = mvpCandidates;
-    } else if (mvpCandidates.length > 1) {
-      // Multiple tied for max — pick those on the winning team
-      const winningTeamTypes = winner === 'good' ? ['god', 'good'] : ['wolf'];
-      mvps = mvpCandidates.filter(n => {
-        const rk = assignments[n];
-        return rk && ROLES[rk] && winningTeamTypes.includes(ROLES[rk].type);
-      });
-      // If filtering leaves empty (shouldn't happen), fallback to all tied
-      if (mvps.length === 0) mvps = mvpCandidates;
-    }
+    const mvps = computeMvps();
     // ─── MVP section ──────────────────────────────────────────────
     let mvpSection = '';
     if (mvps.length > 0) {
@@ -3594,6 +3599,7 @@ header .subtitle {
 
     // ── Build operation detail JSON for each player ──────────────
     var opData = {};
+    var mvps = computeMvps();
     for (var i = 1; i <= TOTAL; i++) {
       var nm = nameBindings[i] || (i + '号');
       var playerLogs = [];
@@ -3602,7 +3608,7 @@ header .subtitle {
           playerLogs.push((scoreLog[j].points > 0 ? '+' : '') + scoreLog[j].points + ' ' + scoreLog[j].reason);
         }
       }
-      opData[nm] = { os: scores[i] || 0, operationLine: playerLogs.join(', '), role: (assignments[i] && ROLES[assignments[i]] ? ROLES[assignments[i]].label : '?') };
+      opData[nm] = { os: scores[i] || 0, operationLine: playerLogs.join(', '), role: (assignments[i] && ROLES[assignments[i]] ? ROLES[assignments[i]].label : '?'), isMvp: mvps.indexOf(i) >= 0 };
     }
     sw[d.resultRow + 1] = JSON.stringify(opData);
 
