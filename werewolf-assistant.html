@@ -862,6 +862,7 @@ header .subtitle {
       <h2 style="font-size:18px;font-weight:700;color:#d4a853;margin-bottom:16px;text-align:center">选择板子</h2>
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="action-btn active" data-board="mech" style="display:block;padding:20px;font-size:18px;border-color:#d4a853;background:rgba(212,168,83,0.2);color:#d4a853">机械狼板子</div>
+        <div class="action-btn" data-board="armor" style="display:block;padding:20px;font-size:18px">装甲狼板子</div>
         <div class="action-btn" data-board="wolfking" style="display:block;padding:20px;font-size:18px">狼王守卫板子</div>
         <div class="action-btn" data-board="whitewolfking" style="display:block;padding:20px;font-size:18px">白狼王板子</div>
         <div class="action-btn" data-board="muteElder" style="display:block;padding:20px;font-size:18px">禁言长老板子</div>
@@ -880,7 +881,7 @@ header .subtitle {
 <script>
 (function() {
   // ─── Constants / Board config ────────────────────────────────
-  let boardType = 'mech';  // 'mech' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare'
+  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare'
 
   let ROLES = {};
   function initRoles(board) {
@@ -916,6 +917,15 @@ header .subtitle {
       wolf:   { label: '狼人',   type: 'wolf', count: 3 },
       nightmare: { label: '噩梦之影', type: 'wolf', count: 1 },
       villager: { label: '平民', type: 'good', count: 4 },
+    } : board === 'armor' ? {
+      medium: { label: '通灵师', type: 'god',  count: 1 },
+      witch:  { label: '女巫',   type: 'god',  count: 1 },
+      hunter: { label: '猎人',   type: 'god',  count: 1 },
+      guard:  { label: '守卫',   type: 'god',  count: 1 },
+      wolf:   { label: '小狼',   type: 'wolf', count: 2 },
+      mech:   { label: '机械狼', type: 'wolf', count: 1 },
+      armor:  { label: '装甲狼', type: 'wolf', count: 1 },
+      villager: { label: '平民', type: 'good', count: 4 },
     } : {
       seer:   { label: '预言家', type: 'god',  count: 1 },
       witch:  { label: '女巫',   type: 'god',  count: 1 },
@@ -927,6 +937,15 @@ header .subtitle {
     };
   }
   initRoles('mech');
+  // 板子显示名
+  function boardDisplayName(board) {
+    return board === 'armor' ? '装甲狼'
+      : board === 'wolfking' ? '狼王守卫'
+      : board === 'whitewolfking' ? '白狼王'
+      : board === 'muteElder' ? '禁言长老'
+      : board === 'nightmare' ? '梦魇'
+      : '机械狼';
+  }
   const TYPE_STYLES = {
     god:  { cls: 'role-tag-god',  label: '神职' },
     wolf: { cls: 'role-tag-wolf', label: '狼人' },
@@ -944,6 +963,8 @@ header .subtitle {
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
+    medium:  '每晚可查验一名玩家的「具体身份」（预言家只验阵营），不能重复查验同一名玩家；必须参与警长竞选。',
+    armor:   '首夜学习一名玩家的身份并获得其技能；与其他狼夜间互不见面，两普狼与机械狼均出局后带刀。若学到机械狼则成为「机械装甲狼」，同时继承机械狼所学的身份与技能。',
     wolfKing: '被放逐或被猎人开枪带走时，可开枪带走一名玩家。',
     whiteWolfKing: '自爆出局后，可开枪带走一名好人玩家。',
     nightmare: '每晚可恐惧一名玩家，使其当夜无法行动；恐惧到狼人则狼队无法袭击；不能连续两晚恐惧同一人；首夜与狼人互不知身份。',
@@ -983,6 +1004,8 @@ header .subtitle {
   let whiteWolfKingShotTarget = null;
       let mechChainShotTarget = null;
   let mechHunterRevengeTarget = null; // mech learned hunter, killed by wolf knife at night
+  let armorChainShotTarget = null;    // armor learned hunter, killed by hunter's shot
+  let armorHunterRevengeTarget = null; // armor learned hunter, killed by wolf knife at night
   let currentStep = 0;
 
   // Multi-round state
@@ -995,6 +1018,16 @@ header .subtitle {
   let mechActionSkipped = false; // mech chose to skip its night skill this round
   let mechExtraKill = null;     // second kill target when mech is last wolf
   let mechExtraKillUsed = false; // ensures extra kill only triggers once
+  // ── 装甲狼板子 (armor board) ──────────────────────────────────
+  let armorLearnTarget = null;   // 装甲狼首夜学习目标
+  let armorNightAction = null;   // { type: 'shield'|'poison'|'check', target: num }
+  let armorHasUsedPoison = false;
+  let armorActionSkipped = false;
+  let armorExtraKill = null;     // 装甲狼带刀时的额外一刀（双刀）
+  let armorExtraKillUsed = false;
+  let armorShieldUsed = false;   // 装甲狼学守卫 → 机械盾一次性
+  let mechShieldUsed = false;    // 机械狼学守卫 → 机械盾一次性（装甲狼板子）
+  let mediumChecked = [];        // 通灵师已查验过的号码（不能重复查验）
   let knightDuelTarget = null;   // knight's duel target (muteElder board)
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
   let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
@@ -1043,15 +1076,47 @@ header .subtitle {
     const rk = assignments[num];
     return rk ? (ROLES[rk] ? ROLES[rk].label : rk) : '?';
   }
+  // 机械/装甲狼「学习」到的身份 key
+  //   - 装甲狼学到机械狼 → 成为机械装甲狼，继承机械狼所学的身份与技能
+  function learnedKeyOf(roleKey) {
+    if (roleKey === 'mech') return learnTarget != null ? assignments[learnTarget] : null;
+    if (roleKey === 'armor') {
+      if (armorLearnTarget == null) return null;
+      const tk = assignments[armorLearnTarget];
+      if (tk === 'mech') return learnTarget != null ? assignments[learnTarget] : null; // 机械装甲狼
+      return tk;
+    }
+    return null;
+  }
+  function getLearnedRoleDisplay(roleKey) {
+    const k = learnedKeyOf(roleKey);
+    if (k == null) return null;
+    return ROLES[k] ? ROLES[k].label : k;
+  }
+  // 是否为「双刀狼」（学到狼人身份）
+  function isDoubleKnifeLearner(roleKey) {
+    const k = learnedKeyOf(roleKey);
+    return k === 'wolf' || k === 'mech' || k === 'armor';
+  }
   function getRoleDisplayFull(num) {
     const rk = assignments[num];
     let base = rk ? (ROLES[rk] ? ROLES[rk].label : rk) : '?';
     if (rk === 'mech' && learnTarget) base += '(学' + getRoleDisplay(learnTarget) + ')';
+    if (rk === 'armor' && armorLearnTarget) {
+      if (assignments[armorLearnTarget] === 'mech') {
+        const ld = getLearnedRoleDisplay('armor');
+        base += '(机械装甲狼' + (ld ? '·学' + ld : '') + ')';
+      } else {
+        base += '(学' + getRoleDisplay(armorLearnTarget) + ')';
+      }
+    }
     return base;
   }
   function canShootAsHunter(num) {
+    if (num == null) return false;
     if (assignments[num] === 'hunter') return true;
-    if (ROLES.mech && assignments[num] === 'mech' && learnTarget && getRoleDisplay(learnTarget) === '猎人') return true;
+    const rk = assignments[num];
+    if (rk === 'mech' || rk === 'armor') return learnedKeyOf(rk) === 'hunter';
     return false;
   }
   function canShootAsWolfKing(num) {
@@ -1066,6 +1131,7 @@ header .subtitle {
     // Hunter was poisoned → cannot shoot
     if (witchPoisonTarget === hunter) return false;
     if (mechNightAction && mechNightAction.type === 'poison' && mechNightAction.target === hunter) return false;
+    if (armorNightAction && armorNightAction.type === 'poison' && armorNightAction.target === hunter) return false;
     // 猎人被噩梦之影恐惧 → 当晚无法开夜枪
     if (nightmareFearTarget === hunter) return false;
     // 猎人因梦游出局/跟随摄梦人出局 → 无技能，不能开枪
@@ -1073,26 +1139,37 @@ header .subtitle {
     return killTarget === hunter;
   }
   function canMechHunterRevenge() {
-    const mech = getAssigned('mech');
-    if (mech == null) return false;
-    if (!isDead(mech)) return false;
-    if (!canShootAsHunter(mech)) return false; // mech learned hunter
+    return canLearnedHunterRevenge('mech');
+  }
+  // 机械狼 / 装甲狼（学猎人）在夜晚被刀 → 可以开枪
+  function canLearnedHunterRevenge(roleKey) {
+    const n = getAssigned(roleKey);
+    if (n == null || !isDead(n)) return false;
+    if (learnedKeyOf(roleKey) !== 'hunter') return false;
     const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
-    if (!tonightDeaths.includes(mech)) return false;
-    // Mech was poisoned → cannot shoot
-    if (witchPoisonTarget === mech) return false;
-    if (mechNightAction && mechNightAction.type === 'poison' && mechNightAction.target === mech) return false;
-    return killTarget === mech;
+    if (!tonightDeaths.includes(n)) return false;
+    // 被毒杀 → 无法开枪
+    if (witchPoisonTarget === n) return false;
+    const ownAction = roleKey === 'mech' ? mechNightAction : armorNightAction;
+    if (ownAction && ownAction.type === 'poison' && ownAction.target === n) return false;
+    return killTarget === n || mechExtraKill === n || armorExtraKill === n;
+  }
+  function canArmorHunterRevenge() {
+    return canLearnedHunterRevenge('armor');
   }
   function isMechDoubleKill() {
     // 机械狼学狼人、作为最后一只狼本轮进行了额外刀（双刀）
     return mechExtraKill > 0;
   }
-  function canMechChainShot(num) {
+  // 机械狼 / 装甲狼（学猎人）被猎人开枪带走 → 可以连锁开枪
+  function canLearnedChainShot(num) {
     if (!num) return false;
-    if (assignments[num] !== 'mech') return false;
-    return learnTarget && getRoleDisplay(learnTarget) === '猎人';
+    const rk = assignments[num];
+    if (rk !== 'mech' && rk !== 'armor') return false;
+    return learnedKeyOf(rk) === 'hunter';
   }
+  function canMechChainShot(num) { return canLearnedChainShot(num); }
+  function canArmorChainShot(num) { return canLearnedChainShot(num); }
   function canWolfKingChainShot() {
     if (wolfKingShotTarget !== null) return null;
     if (hunterRevengeTarget && canShootAsWolfKing(hunterRevengeTarget)) return hunterRevengeTarget;
@@ -1105,8 +1182,8 @@ header .subtitle {
     //   A) Mech-hunter banished, shot real hunter
     //   B) Wolf king banished, shot real hunter
     if (!banishedPlayer) return false;
-    // Case A: mech-hunter
-    if (assignments[banishedPlayer] === 'mech' && learnTarget && getRoleDisplay(learnTarget) === '猎人') {
+    // Case A: mech-hunter / armor-hunter
+    if (canLearnedChainShot(banishedPlayer)) {
       if (hunterShotTarget && assignments[hunterShotTarget] === 'hunter') return true;
     }
     // Case B: wolf king
@@ -1126,19 +1203,56 @@ header .subtitle {
     for (let i = 1; i <= TOTAL; i++) { if (!isDead(i)) r.push(i); }
     return r;
   }
+  // ── 装甲狼板子：狼队存活 / 带刀顺序（两普狼 > 机械狼 > 装甲狼）──
+  function aliveNormalWolves() { return getAssignedAll('wolf').filter(n => !isDead(n)); }
+  function roleAlive(roleKey) {
+    const n = getAssigned(roleKey);
+    return n != null && !isDead(n);
+  }
+  // 当前由谁执刀：'wolf' | 'mech' | 'armor' | null
+  function knifeCarrier() {
+    if (aliveNormalWolves().length > 0) return 'wolf';
+    if (roleAlive('mech')) return 'mech';
+    if (roleAlive('armor')) return 'armor';
+    return null;
+  }
+  // 装甲狼板子：装甲狼学守卫时的护盾目标
+  function armorShieldTarget() {
+    return (boardType === 'armor' && armorNightAction && armorNightAction.type === 'shield')
+      ? armorNightAction.target : null;
+  }
+  // 装甲狼板子：所有生效中的护盾目标（守卫 + 机械狼盾 + 装甲狼盾）
+  function shieldTargets() {
+    const t = [];
+    if (guardProtectTarget) t.push(guardProtectTarget);
+    const ms = mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
+    if (ms) t.push(ms);
+    const as = armorShieldTarget();
+    if (as) t.push(as);
+    return t;
+  }
+  // 装甲狼板子：双刀同目标 → 破盾
+  function doubleKnifePierce(target) {
+    if (target == null || !target) return false;
+    if (target !== killTarget) return false;
+    return mechExtraKill === target || armorExtraKill === target;
+  }
   function checkGameOver() {
     const aliveWolves = getAssignedAll('wolf').filter(n => !isDead(n)).length;
     const mechN = getAssigned('mech');
+    const armorN = getAssigned('armor');
     const wkN = getAssigned('wolfKing');
     const wwkN = getAssigned('whiteWolfKing');
     const mechAlive = mechN != null && !isDead(mechN);
+    const armorAlive = armorN != null && !isDead(armorN);
     const wkAlive = wkN != null && !isDead(wkN);
     const wwkAlive = wwkN != null && !isDead(wwkN);
     const nmN = getAssigned('nightmare');
     const nmAlive = nmN != null && !isDead(nmN);
-    if (aliveWolves === 0 && !mechAlive && !wkAlive && !wwkAlive && !nmAlive) return 'good';
+    if (aliveWolves === 0 && !mechAlive && !armorAlive && !wkAlive && !wwkAlive && !nmAlive) return 'good';
     const gods = boardType === 'muteElder' ? ['seer','witch','knight','muteElder']
       : boardType === 'nightmare' ? ['seer','witch','hunter','dreamweaver']
+      : boardType === 'armor' ? ['medium','witch','hunter','guard']
       : ['seer','witch','hunter','guard'];
     const deadGods = gods.filter(rk => {
       const n = getAssigned(rk);
@@ -1154,12 +1268,12 @@ header .subtitle {
   function isWolfFactionNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'wolf' || rk === 'mech' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare';
+    return rk === 'wolf' || rk === 'mech' || rk === 'armor' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare';
   }
   function isGodNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'seer' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver';
+    return rk === 'seer' || rk === 'medium' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver';
   }
   function nightmareBlocksKill() {
     if (boardType !== 'nightmare') return false;
@@ -1176,6 +1290,7 @@ header .subtitle {
     if (!scoredRounds[round]) scoredRounds[round] = {};
     scoredRounds[round].night = true;
     const mn = getAssigned('mech');
+    const an = getAssigned('armor');
     const wkn = getAssigned('wolfKing');
     const wwkn = getAssigned('whiteWolfKing');
     const aliveWolves = getAssignedAll('wolf').filter(n => !isDead(n));
@@ -1184,6 +1299,7 @@ header .subtitle {
     if (killTarget && isDead(killTarget)) {
       aliveWolves.forEach(n => awardScore(n, 1, '刀人出局'));
       if (mn != null && !isDead(mn)) awardScore(mn, 1, '刀人出局');
+      if (an != null && !isDead(an)) awardScore(an, 1, '刀人出局');
       if (wkn != null && !isDead(wkn)) awardScore(wkn, 1, '刀人出局');
       if (wwkn != null && !isDead(wwkn)) awardScore(wwkn, 1, '刀人出局');
       // 噩梦之影作为狼队最后一人执刀（小狼全出局时）也计入刀人出局
@@ -1193,6 +1309,10 @@ header .subtitle {
     // Mech extra kill (mech board only)
     if (ROLES.mech && mechExtraKill && isDead(mechExtraKill) && mn != null) {
       awardScore(mn, 1, '额外刀人出局');
+    }
+    // 装甲狼额外刀人（双刀）
+    if (ROLES.armor && armorExtraKill && isDead(armorExtraKill) && an != null) {
+      awardScore(an, 1, '装甲狼额外刀人出局');
     }
     // Mech check on god
     if (ROLES.mech && mechNightAction && mechNightAction.type === 'check' && mn != null) {
@@ -1206,6 +1326,15 @@ header .subtitle {
     if (ROLES.mech && mechNightAction && mechNightAction.type === 'shield' && mn != null) {
       if (witchPoisonTarget === mechNightAction.target) awardScore(mn, 2, '守到女巫毒药');
       if (killTarget && mechNightAction.target === killTarget) awardScore(mn, 2, '守到狼刀');
+    }
+    // ── 装甲狼板子：装甲狼技能计分 ──
+    if (ROLES.armor && armorNightAction && an != null) {
+      if (armorNightAction.type === 'check' && isGodNum(armorNightAction.target)) awardScore(an, 1, '装甲狼查验到神');
+      if (armorNightAction.type === 'poison' && isGodNum(armorNightAction.target)) awardScore(an, 2, '装甲狼毒到神');
+      if (armorNightAction.type === 'shield') {
+        if (witchPoisonTarget === armorNightAction.target) awardScore(an, 2, '装甲狼守到女巫毒药');
+        if (killTarget && armorNightAction.target === killTarget && !doubleKnifePierce(killTarget)) awardScore(an, 2, '装甲狼守到狼刀');
+      }
     }
     // Mute elder scoring (muteElder board)
     if (boardType === 'muteElder' && mechNightAction && mechNightAction.type === 'mute') {
@@ -1227,25 +1356,34 @@ header .subtitle {
         awardScore(dw, 2, '梦游免死');
       }
     }
-    // Seer check on wolf
+    // Seer / 通灵师 check on wolf
     if (seerCheckTarget != null) {
-      if (isWolfFactionNum(seerCheckTarget)) awardScore(getAssigned('seer'), 1, '验到狼人');
+      if (isWolfFactionNum(seerCheckTarget)) {
+        if (boardType === 'armor') awardScore(getAssigned('medium'), 1, '通灵师验到狼人');
+        else awardScore(getAssigned('seer'), 1, '验到狼人');
+      }
     }
     // Witch save on good person
     const wn = getAssigned('witch');
     if (witchSaveAction === 'save' && killTarget && wn != null) {
       if (!isWolfFactionNum(killTarget)) awardScore(wn, 2, '救起好人');
     }
+    // 狼人自刀：女巫选择不救 → +2（识破自刀、不浪费解药）
+    if (witchSaveAction === 'no-save' && killTarget && wn != null && isWolfFactionNum(killTarget)) {
+      awardScore(wn, 2, '不救自刀狼人');
+    }
     // Witch poison on wolf
     if (witchPoisonTarget != null && witchHasPoison && wn != null) {
       const mechShield = ROLES.mech && mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
-      if (witchPoisonTarget !== mechShield && isWolfFactionNum(witchPoisonTarget)) {
+      const armorShield = armorShieldTarget();
+      if (witchPoisonTarget !== mechShield && witchPoisonTarget !== armorShield && isWolfFactionNum(witchPoisonTarget)) {
         awardScore(wn, 2, '毒到狼人');
       }
     }
-    // Guard blocked wolf kill (机械狼双刀第一刀无视守卫，守卫无效)
+    // Guard blocked wolf kill (机械狼双刀第一刀无视守卫，守卫无效；装甲狼板子：仅双刀同目标破盾)
     const gn = getAssigned('guard');
-    if (guardProtectTarget && killTarget && guardProtectTarget === killTarget && gn != null && !isMechDoubleKill()) {
+    const guardPierced = boardType === 'armor' ? doubleKnifePierce(killTarget) : isMechDoubleKill();
+    if (guardProtectTarget && killTarget && guardProtectTarget === killTarget && gn != null && !guardPierced) {
       awardScore(gn, 2, '守到狼刀');
     }
     // Villager killed by wolf (not saved/guarded)
@@ -1260,12 +1398,14 @@ header .subtitle {
     // Sheriff scoring (round 1 only)
     if (round === 1 && sheriff && sheriff !== 'none') {
       const sr = assignments[sheriff];
-      if (sr === 'wolf' || sr === 'mech' || sr === 'wolfKing') {
+      if (sr === 'wolf' || sr === 'mech' || sr === 'armor' || sr === 'wolfKing') {
         getAssignedAll('wolf').filter(n => !isDead(n)).forEach(n => awardScore(n, 1, '狼人获得警长'));
         const m = getAssigned('mech'); if (m != null && !isDead(m)) awardScore(m, 1, '狼人获得警长');
+        const ar = getAssigned('armor'); if (ar != null && !isDead(ar)) awardScore(ar, 1, '狼人获得警长');
         const wk = getAssigned('wolfKing'); if (wk != null && !isDead(wk)) awardScore(wk, 1, '狼人获得警长');
       }
       if (sr === 'seer') awardScore(sheriff, 1, '预言家当选警长');
+      if (sr === 'medium') awardScore(sheriff, 1, '通灵师当选警长');
     }
     // Hunter shot on wolf faction
     if (hunterShotTarget != null && isWolfFactionNum(hunterShotTarget) && banishedPlayer != null) {
@@ -1275,6 +1415,16 @@ header .subtitle {
     if (mechChainShotTarget != null) {
       const mechNum = hunterShotTarget ? hunterShotTarget : hunterRevengeTarget;
       if (mechNum != null) awardScore(mechNum, 4, '机械狼猎人开枪带走');
+    }
+    // 装甲狼猎人连锁开枪
+    if (armorChainShotTarget != null) {
+      const armorNum = hunterShotTarget ? hunterShotTarget : hunterRevengeTarget;
+      if (armorNum != null) awardScore(armorNum, 4, '装甲狼猎人开枪带走');
+    }
+    // 装甲狼猎人夜间复仇开枪
+    if (armorHunterRevengeTarget != null) {
+      const ar = getAssigned('armor');
+      if (ar != null) awardScore(ar, 4, '装甲狼猎人开枪带走');
     }
     // Mech-hunter night revenge shot (killed by wolf knife at night)
     if (mechHunterRevengeTarget != null) {
@@ -1345,9 +1495,14 @@ header .subtitle {
     whiteWolfKingShotTarget = null;
     mechChainShotTarget = null;
     mechHunterRevengeTarget = null;
+    armorChainShotTarget = null;
+    armorHunterRevengeTarget = null;
     mechNightAction = null;
     mechActionSkipped = false;
     mechExtraKill = null;
+    armorNightAction = null;
+    armorActionSkipped = false;
+    armorExtraKill = null;
     knightDuelTarget = null;
     dreamTarget = null;
     nightmareFearTarget = null;
@@ -1370,8 +1525,14 @@ header .subtitle {
     const fearBlocksKill = nightmareBlocksKill();
     const guardTarget = guardProtectTarget;
     const mechShield = mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
-    // 机械狼学狼人、作为最后一只狼首次双刀时，第一刀无视守卫守护
-    const mechFirstKillPierces = isMechDoubleKill();
+    const armorShield = armorShieldTarget();
+    // 破盾判定：
+    //   机械狼板子 —— 机械狼学狼人双刀时，第一刀无视守卫守护
+    //   装甲狼板子 —— 第二刀不破盾；两刀打在同一名玩家身上才破盾
+    const mechFirstKillPierces = boardType === 'armor' ? doubleKnifePierce(killTarget) : isMechDoubleKill();
+    const isShielded = (t) => !!t && ((mechShield != null && t === mechShield) || (armorShield != null && t === armorShield));
+    // 第二刀：装甲狼板子下被守卫/盾挡住则无效
+    const secondKnifeBlocked = (t) => boardType === 'armor' && t !== killTarget && (t === guardTarget || isShielded(t));
     // 连续两晚梦游同一人 → 梦游出局（无技能）；摄梦人被恐惧则中断，不触发
     const consecutiveDreamOut = boardType === 'nightmare' && !dwFeared && dreamerImmune && dreamer === lastDreamTarget;
 
@@ -1384,22 +1545,27 @@ header .subtitle {
         // 空刀 / 梦游者免死
       }
       // 同守同救: guard AND witch on same target -> still dies (unless mech guard shields)
-      else if (isGuarded && isSaved && killTarget !== mechShield) { addDeath(killTarget); }
-      else if (!isGuarded && killTarget !== mechShield && !isSaved) { addDeath(killTarget); }
+      else if (isGuarded && isSaved && !isShielded(killTarget)) { addDeath(killTarget); }
+      else if (!isGuarded && !isShielded(killTarget) && !isSaved) { addDeath(killTarget); }
     }
-    if (mechExtraKill) addDeath(mechExtraKill);
+    if (mechExtraKill) { if (!secondKnifeBlocked(mechExtraKill)) addDeath(mechExtraKill); }
+    if (armorExtraKill) { if (!secondKnifeBlocked(armorExtraKill)) addDeath(armorExtraKill); }
     if (witchPoisonTarget && witchHasPoison) {
       if (dreamerImmune && witchPoisonTarget === dreamer) {
         // 梦游者免疫夜伤，毒不死
-      } else if (witchPoisonTarget === mechShield) {
-        const wn = getAssigned('witch');
-        if (wn != null) addDeath(wn);
+      } else if (isShielded(witchPoisonTarget)) {
+        // 被守到的玩家免疫女巫的毒（机械狼板子沿用「奶穿」反噬规则）
+        if (boardType !== 'armor') {
+          const wn = getAssigned('witch');
+          if (wn != null) addDeath(wn);
+        }
         witchHasPoison = false;
       } else {
         addDeath(witchPoisonTarget);
       }
     }
     if (mechNightAction && mechNightAction.type === 'poison') addDeath(mechNightAction.target);
+    if (armorNightAction && armorNightAction.type === 'poison') addDeath(armorNightAction.target);
     // 连续两晚梦游 → 梦游者梦游出局（无技能）
     if (consecutiveDreamOut) {
       addDeath(dreamer);
@@ -1463,6 +1629,10 @@ header .subtitle {
     if (boardType === 'wolfking') {
       if (round === 1) return buildWolfKingRound1Steps();
       return buildWolfKingRound2PlusSteps();
+    }
+    if (boardType === 'armor') {
+      if (round === 1) return buildArmorRound1Steps();
+      return buildArmorRound2PlusSteps();
     }
     if (boardType === 'whitewolfking') {
       if (round === 1) return buildWhiteWolfKingRound1Steps();
@@ -1863,6 +2033,451 @@ header .subtitle {
       handleSelect(num) { if (num === hunterShotTarget) return; mechChainShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
     });
 
+    return s;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  装甲狼板子（12人迷雾装甲/机械装甲）
+  //  狼：机械狼 / 装甲狼 / 两普狼    好人：通灵师 / 女巫 / 猎人 / 守卫 / 四平民
+  //  带刀顺序：两普狼 > 机械狼 > 装甲狼
+  //  首夜：机械狼学 > 装甲狼学 > 守卫 > 狼 > 女巫 > 通灵师 > 天亮
+  //  次夜：守卫 > 带刀狼 > 女巫 > 机械狼技能 > 装甲狼技能 > 通灵师 > 天亮
+  //  结算优先：狼刀 > 女巫的毒 > 机械毒/刀
+  // ═══════════════════════════════════════════════════════════════
+
+  // 机械狼 / 装甲狼 夜间技能步骤（学守卫 / 女巫 / 通灵师 时可用；技能第二天后才可使用）
+  function pushLearnedNightStep(s, roleKey) {
+    const isMech = roleKey === 'mech';
+    const label = isMech ? '机械狼' : '装甲狼';
+    const num = getAssigned(roleKey);
+    const alive = num != null && !isDead(num);
+    const learned = getLearnedRoleDisplay(roleKey);
+    const getAction  = () => (isMech ? mechNightAction : armorNightAction);
+    const setAction  = (v) => { if (isMech) mechNightAction = v; else armorNightAction = v; };
+    const getSkipped = () => (isMech ? mechActionSkipped : armorActionSkipped);
+    const setSkipped = (v) => { if (isMech) mechActionSkipped = v; else armorActionSkipped = v; };
+    const getPoisonUsed = () => (isMech ? mechHasUsedPoison : armorHasUsedPoison);
+    const setPoisonUsed = (v) => { if (isMech) mechHasUsedPoison = v; else armorHasUsedPoison = v; };
+    const getShieldUsed = () => (isMech ? mechShieldUsed : armorShieldUsed);
+    const setShieldUsed = (v) => { if (isMech) mechShieldUsed = v; else armorShieldUsed = v; };
+    const rl = '第' + round + '晚';
+    const deadCard = (msg) => '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">' + msg + '</div></div>';
+
+    s.push({
+      title: label + '行动', subtitle: rl + ' - 行动',
+      desc() {
+        if (num == null) return label + '未分配';
+        if (!alive) return num + ' 号' + label + '(学' + (learned || '?') + ')已阵亡，无法行动';
+        return num + ' 号' + label + '(学' + (learned || '?') + ')的夜间行动';
+      },
+      canProceed() {
+        if (num == null || !alive) return true;
+        if (learned !== '守卫' && learned !== '女巫' && learned !== '通灵师') return true;
+        if (learned === '女巫' && getPoisonUsed()) return true;
+        if (learned === '守卫' && getShieldUsed()) return true;
+        return getAction() !== null || getSkipped();
+      },
+      render() {
+        if (num == null) return deadCard(label + '未分配');
+        if (!alive) return deadCard(label + '已阵亡，无法行动');
+        if (learned === '守卫') {
+          if (getShieldUsed()) return deadCard(label + '护盾已使用（一次性生效）');
+          let h = '<div class="action-group"><div class="action-btn ' + (getSkipped() ? 'active' : '') + '" data-act="skip-learned">不使用技能</div></div>';
+          const act = getAction();
+          h += renderGrid({ grayedNums: deadPlayers, selectedNums: act && act.type === 'shield' ? [act.target] : undefined, selectedClass: 'learn-target' });
+          return h;
+        }
+        if (learned === '女巫') {
+          if (getPoisonUsed()) return deadCard(label + '毒药已使用，无技能');
+          let h = '<div class="action-group"><div class="action-btn ' + (getSkipped() ? 'active' : '') + '" data-act="skip-learned">不使用技能</div></div>';
+          const act = getAction();
+          h += renderGrid({ grayedNums: deadPlayers, disabledNums: [num], selectedNums: act && act.type === 'poison' ? [act.target] : undefined, selectedClass: 'kill-target' });
+          return h;
+        }
+        if (learned === '通灵师') {
+          let h = '<div class="action-group"><div class="action-btn ' + (getSkipped() ? 'active' : '') + '" data-act="skip-learned">不使用技能</div></div>';
+          const act = getAction();
+          h += renderGrid({ grayedNums: deadPlayers, disabledNums: [num], selectedNums: act && act.type === 'check' ? [act.target] : undefined, selectedClass: 'learn-target' });
+          if (act && act.type === 'check') h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(act.target) + '</div></div>';
+          return h;
+        }
+        return deadCard(label + '学' + (learned || '?') + '，无夜间技能');
+      },
+      handleAction(act) {
+        if (act === 'skip-learned') { setSkipped(true); setAction(null); render(currentStep); }
+      },
+      handleSelect(target) {
+        setSkipped(false);
+        if (learned === '守卫') { setAction({ type: 'shield', target }); setShieldUsed(true); }
+        else if (learned === '女巫') { setAction({ type: 'poison', target }); setPoisonUsed(true); }
+        else if (learned === '通灵师') setAction({ type: 'check', target });
+        render(currentStep);
+      },
+    });
+  }
+
+  // 机械狼 / 装甲狼（学猎人）被猎人开枪带走 → 连锁开枪
+  //   trigger: 'revenge' 被夜间复仇开枪带走 | 'shot' 被白天开枪带走
+  function pushLearnedChainSteps(s, trigger) {
+    const srcGetter = trigger === 'revenge' ? () => hunterRevengeTarget : () => hunterShotTarget;
+    [['mech', '机械狼'], ['armor', '装甲狼']].forEach(function(pair) {
+      const roleKey = pair[0], label = pair[1];
+      const getT = () => (roleKey === 'mech' ? mechChainShotTarget : armorChainShotTarget);
+      const setT = (v) => { if (roleKey === 'mech') mechChainShotTarget = v; else armorChainShotTarget = v; };
+      s.push({
+        title: label + '猎人开枪', subtitle: '开枪',
+        desc() { return '被猎人带走的 ' + srcGetter() + ' 号是' + label + '猎人，可以开枪带走一人'; },
+        canProceed: () => !canLearnedChainShot(srcGetter()) || getT() !== null,
+        autoSkip: () => !canLearnedChainShot(srcGetter()) || getT() !== null,
+        render() {
+          if (!canLearnedChainShot(srcGetter())) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">被带走的玩家不是' + label + '猎人，无需开枪</div></div>';
+          const t = getT();
+          let h = renderGrid({ grayedNums: [srcGetter(), ...deadPlayers], selectedNums: t ? [t] : undefined, selectedClass: 'kill-target' });
+          if (t) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">' + label + '猎人开枪带走</div><div class="kill-value">' + t + ' 号 (' + getRoleDisplay(t) + ')</div></div>';
+          return h;
+        },
+        handleSelect(target) { if (target === srcGetter()) return; setT(target); if (!isDead(target)) addDeath(target); render(currentStep); },
+      });
+    });
+  }
+
+  // 机械狼 / 装甲狼（学猎人）夜晚被刀 → 复仇开枪
+  function pushLearnedRevengeSteps(s) {
+    [['mech', '机械狼'], ['armor', '装甲狼']].forEach(function(pair) {
+      const roleKey = pair[0], label = pair[1];
+      const canShoot = () => (roleKey === 'mech' ? canMechHunterRevenge() : canArmorHunterRevenge());
+      const getT = () => (roleKey === 'mech' ? mechHunterRevengeTarget : armorHunterRevengeTarget);
+      const setT = (v) => { if (roleKey === 'mech') mechHunterRevengeTarget = v; else armorHunterRevengeTarget = v; };
+      s.push({
+        title: label + '猎人开枪', subtitle: '晨曦',
+        desc() { const n = getAssigned(roleKey); return n != null ? n + ' 号' + label + '(学猎人)在夜晚被刀，可以开枪带走一人' : ''; },
+        canProceed: () => !canShoot() || getT() !== null,
+        autoSkip: () => !canShoot() || getT() !== null,
+        render() {
+          if (!canShoot()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">' + label + '猎人未被刀死，无需开枪</div></div>';
+          const t = getT();
+          let h = renderGrid({ grayedNums: deadPlayers, selectedNums: t ? [t] : undefined, selectedClass: 'kill-target' });
+          if (t) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">' + label + '猎人开枪带走</div><div class="kill-value">' + t + ' 号 (' + getRoleDisplay(t) + ')</div></div>';
+          return h;
+        },
+        handleSelect(target) { setT(target); if (!isDead(target)) addDeath(target); render(currentStep); },
+      });
+    });
+  }
+
+  // 装甲狼板子：白天放逐 + 猎人开枪 + 连锁
+  function pushArmorDaySteps(s) {
+    s.push({ title: '白天放逐', subtitle: '第' + round + '天 - 投票', desc: '请选择被放逐的玩家号码',
+      canProceed: () => banishedPlayer !== null,
+      render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined }); },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+    s.push({ title: '猎人开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplayFull(banishedPlayer) + ') 可以开枪，请选择目标'; },
+      canProceed: () => !banishedPlayer || !canShootAsHunter(banishedPlayer) || hunterShotTarget !== null,
+      autoSkip: () => !banishedPlayer || !canShootAsHunter(banishedPlayer),
+      render() {
+        if (!banishedPlayer || !canShootAsHunter(banishedPlayer)) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">被放逐的玩家不是猎人，无需开枪</div></div>';
+        let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: hunterShotTarget ? [hunterShotTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterShotTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人开枪带走</div><div class="kill-value">' + hunterShotTarget + ' 号 (' + getRoleDisplay(hunterShotTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { if (num === banishedPlayer) return; hunterShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    pushLearnedChainSteps(s, 'shot');
+  }
+
+  // ─── 装甲狼板子 Round 1（首夜 + 警长 + 白天）───────────────
+  function buildArmorRound1Steps() {
+    const s = [];
+    const assignStep = (roleKey, title) => s.push({
+      title: title, subtitle: '第1晚', desc: '请点击选择' + ROLES[roleKey].label + '的号码',
+      canProceed: () => getAssigned(roleKey) !== null,
+      render() { const sel = getAssigned(roleKey); return renderGrid({ grayedNums: grayedExcept(roleKey), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) { const p = getAssigned(roleKey); if (p) unassign(p); assign(num, roleKey); render(currentStep); },
+    });
+
+    // 分配神职
+    assignStep('medium', '通灵师睁眼');
+    assignStep('witch', '女巫睁眼');
+    assignStep('hunter', '猎人睁眼');
+    assignStep('guard', '守卫睁眼');
+    // 两普狼：睁眼后直接刀人
+    s.push({ title: '小狼睁眼', subtitle: '第1晚', desc: '请选择2名小狼的号码',
+      canProceed: () => getAssignedAll('wolf').length === 2,
+      render() { const sel = getAssignedAll('wolf'); const left = 2 - sel.length; return renderGrid({ grayedNums: grayedExcept('wolf'), selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名小狼' : '已选2名小狼' }); },
+      handleSelect(num) { const cur = getAssignedAll('wolf'); const idx = cur.indexOf(num); if (idx >= 0) unassign(num); else if (cur.length < 2) assign(num, 'wolf'); render(currentStep); },
+    });
+    s.push({ title: '小狼行动', subtitle: '第1晚 - 刀人', desc: '请选择小狼刀人的目标号码',
+      canProceed: () => killTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+    // 机械狼 / 装甲狼：两只都登记齐之后才开始学习
+    assignStep('mech', '机械狼睁眼');
+    // 装甲狼（最后分配，剩余座位自动补平民；到此全场身份已齐）
+    s.push({ title: '装甲狼睁眼', subtitle: '第1晚', desc: '请点击选择装甲狼的号码',
+      canProceed: () => getAssigned('armor') !== null,
+      render() { const sel = getAssigned('armor'); return renderGrid({ grayedNums: grayedExcept('armor'), selectedNums: sel ? [sel] : undefined }); },
+      handleSelect(num) {
+        const p = getAssigned('armor'); if (p) unassign(p);
+        assign(num, 'armor');
+        const used = new Set(Object.keys(assignments).map(Number));
+        for (let i = 1; i <= TOTAL; i++) { if (!used.has(i)) assignments[i] = 'villager'; }
+        render(currentStep);
+      },
+    });
+    // 机械狼学习在前：装甲狼若学到机械狼，需要继承机械狼的学习结果
+    s.push({ title: '机械狼学习', subtitle: '第1晚 - 学习', desc: '请选择机械狼学习的目标（获得其身份技能，第二天后才可使用）',
+      canProceed: () => learnTarget !== null,
+      render() { const mn = getAssigned('mech'); let h = renderGrid({ grayedNums: [], disabledNums: mn ? [mn] : [], selectedNums: learnTarget ? [learnTarget] : undefined, selectedClass: 'learn-target' }); if (learnTarget) h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(learnTarget) + '</div></div>'; return h; },
+      handleSelect(num) { learnTarget = num; render(currentStep); },
+    });
+    // 装甲狼学习
+    s.push({ title: '装甲狼学习', subtitle: '第1晚 - 学习', desc: '请选择装甲狼学习的目标（学机械狼将升级为「机械装甲狼」）',
+      canProceed: () => armorLearnTarget !== null,
+      render() {
+        const ar = getAssigned('armor');
+        let h = renderGrid({ grayedNums: [], disabledNums: ar ? [ar] : [], selectedNums: armorLearnTarget ? [armorLearnTarget] : undefined, selectedClass: 'learn-target' });
+        if (armorLearnTarget) {
+          h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(ar) + '</div></div>';
+          if (assignments[armorLearnTarget] === 'mech') h += '<div class="warning-note">装甲狼学到机械狼 → 机械装甲狼，继承机械狼所学的身份与技能</div>';
+        }
+        return h;
+      },
+      handleSelect(num) { armorLearnTarget = num; render(currentStep); },
+    });
+    // 守卫守人（首夜）
+    s.push({ title: '守卫守人', subtitle: '第1晚 - 守人', desc: '请选择守卫守护的目标，也可以选择空守',
+      canProceed: () => guardProtectTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' }); return h; },
+      handleAction(act) { if (act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
+      handleSelect(num) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); },
+    });
+    // 女巫行动（首夜）
+    s.push({ title: '女巫行动', subtitle: '第1晚 - 救人/毒人', desc: '请记录女巫的行动',
+      canProceed() { const wn = getAssigned('witch'); const ik = wn === killTarget; if (killTarget && !ik && witchSaveAction === null) return false; if (witchPoisonActive && witchPoisonTarget === null) return false; return true; },
+      render() {
+        const wn = getAssigned('witch'); const ik = wn === killTarget; if (ik && witchSaveAction === null) witchSaveAction = 'no-save';
+        let h = '';
+        if (killTarget) {
+          h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">小狼首夜刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
+          if (ik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+          if (!ik) { h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">'; h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>'; h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>'; }
+        } else {
+          h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">小狼首夜刀人</div><div class="kill-value">空刀</div></div>';
+        }
+        h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+        h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+        h += '<div class="action-btn ' + (!witchPoisonActive && witchSaveAction !== null ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        if (witchPoisonActive) h += renderGrid({ grayedNums: [], disabledNums: [wn], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { witchPoisonTarget = num; render(currentStep); },
+    });
+    // 通灵师验人（查验具体身份，不能重复查验同一人）
+    s.push({ title: '通灵师验人', subtitle: '第1晚 - 验人', desc: '请选择通灵师查验的目标（查验具体身份，不能重复查验同一人）',
+      canProceed: () => seerCheckTarget !== null,
+      render() {
+        let h = renderGrid({ grayedNums: [], disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(seerCheckTarget) + '</div></div>';
+        return h;
+      },
+      handleSelect(num) { if (mediumChecked.indexOf(num) >= 0) return; seerCheckTarget = num; render(currentStep); },
+    });
+    // 天亮
+    s.push({ title: '天亮', subtitle: '第1天', desc: '首夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.slice().sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        if (learnTarget) h += '<div style="margin-top:8px;font-size:14px;color:#aab">机械狼学习: ' + learnTarget + ' 号 (' + getRoleDisplay(learnTarget) + ')</div>';
+        if (armorLearnTarget) h += '<div style="margin-top:8px;font-size:14px;color:#aab">装甲狼学习: ' + armorLearnTarget + ' 号 (' + getRoleDisplay(armorLearnTarget) + ')</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+    // 最终竞选人（通灵师必须参与警长竞选）
+    s.push({ title: '最终竞选人', subtitle: '白天 - 竞选', desc: '选择最终成为警长的玩家号码（通灵师必须参与竞选）',
+      canProceed: () => sheriff !== null,
+      render() { const sel = typeof sheriff === 'number' ? sheriff : null; let h = renderGrid({ grayedNums: [], selectedNums: sel ? [sel] : undefined }); h += '<div class="action-group" style="margin-top:12px"><div class="action-btn ' + (sheriff === 'none' ? 'active' : '') + '" data-act="no-sheriff">无人留到最后（无警长）</div></div>'; return h; },
+      handleSelect(num) { sheriff = num; render(currentStep); },
+      handleAction(act) { if (act === 'no-sheriff') { sheriff = 'none'; render(currentStep); } },
+    });
+    // 猎人复仇开枪 + 学猎人连锁 + 学猎人夜间复仇
+    s.push({ title: '猎人复仇开枪', subtitle: '晨曦',
+      desc() { const h = getAssigned('hunter'); return h ? h + ' 号猎人在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      autoSkip: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      render() {
+        if (!canHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">猎人未被刀死，无需复仇开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: hunterRevengeTarget ? [hunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterRevengeTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人复仇开枪带走</div><div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { hunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    pushLearnedChainSteps(s, 'revenge');
+    pushLearnedRevengeSteps(s);
+    pushArmorDaySteps(s);
+    return s;
+  }
+
+  // ─── 装甲狼板子 Round 2+（夜间 + 白天循环）────────────────
+  function buildArmorRound2PlusSteps() {
+    const s = [];
+    const rl = '第' + round + '晚';
+    const carrier = knifeCarrier();
+    const sNum = getAssigned('medium'); const sDead = sNum == null || isDead(sNum);
+    const wNum = getAssigned('witch');  const wDead = wNum == null || isDead(wNum);
+    const gNum = getAssigned('guard');  const gDead = gNum == null || isDead(gNum);
+
+    // 1. 守卫守人（不能连续两晚守同一人）
+    s.push({ title: '守卫守人', subtitle: rl + ' - 守人',
+      desc: gDead ? '守卫已阵亡，无法守人' : (lastGuardTarget != null ? lastGuardTarget + '号是昨晚守过的，今晚不能连续守' : '请选择守卫守护的目标，也可以选择不守'),
+      canProceed: () => gDead || guardProtectTarget !== null,
+      render() {
+        if (gDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">守卫已阵亡，无法守人</div></div>';
+        const disabled = lastGuardTarget != null ? [lastGuardTarget] : [];
+        let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>';
+        h += renderGrid({ grayedNums: deadPlayers, disabledNums: disabled, selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' });
+        return h;
+      },
+      handleAction(act) { if (!gDead && act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
+      handleSelect(num) { if (!gDead) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); } },
+    });
+
+    // 2. 带刀狼刀人（两普狼 > 机械狼 > 装甲狼）
+    if (carrier) {
+      const carrierLabel = carrier === 'wolf' ? '狼人' : carrier === 'mech' ? '机械狼' : '装甲狼';
+      s.push({ title: carrierLabel + '刀人', subtitle: rl + ' - 刀人',
+        desc: carrier === 'wolf' ? '请选择狼人刀人的目标号码' : carrierLabel + '是最后的执刀狼，请选择刀人目标',
+        canProceed: () => killTarget !== null,
+        render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+        handleSelect(num) { killTarget = num; render(currentStep); },
+      });
+      // 双刀：学到狼人身份的执刀狼可以额外一刀（每次带刀仅一次）
+      const extraPair = carrier === 'mech' ? ['mech', '机械狼', () => mechExtraKill, (v) => { mechExtraKill = v; }, () => mechExtraKillUsed, (v) => { mechExtraKillUsed = v; }]
+        : carrier === 'armor' ? ['armor', '装甲狼', () => armorExtraKill, (v) => { armorExtraKill = v; }, () => armorExtraKillUsed, (v) => { armorExtraKillUsed = v; }]
+        : null;
+      if (extraPair && isDoubleKnifeLearner(extraPair[0]) && !extraPair[4]()) {
+        const label = extraPair[1], getX = extraPair[2], setX = extraPair[3], setUsed = extraPair[5];
+        s.push({ title: label + '额外刀人（双刀）', subtitle: rl + ' - 双刀',
+          desc: label + '学到狼人身份，是双刀狼：可以额外刀一人（第二刀不破盾，两刀同目标可破盾）',
+          canProceed: () => getX() !== null,
+          render() {
+            let h = '<div class="action-group"><div class="action-btn ' + (getX() === 0 ? 'active' : '') + '" data-act="no-extra-kill">不额外刀</div></div>';
+            h += renderGrid({ grayedNums: deadPlayers, selectedNums: getX() ? [getX()] : undefined, selectedClass: 'kill-target' });
+            if (killTarget && getX() && getX() === killTarget) h += '<div class="warning-note">两刀同目标 → 可破盾（无视守卫护盾）</div>';
+            return h;
+          },
+          handleAction(act) { if (act === 'no-extra-kill') { setX(0); setUsed(true); render(currentStep); } },
+          handleSelect(num) { setX(num); setUsed(true); render(currentStep); },
+        });
+      }
+    }
+
+    // 3. 女巫行动
+    s.push({ title: '女巫行动', subtitle: rl + ' - 救人/毒人', desc: wDead ? '女巫已阵亡，无法行动' : '请记录女巫的行动',
+      canProceed() {
+        if (wDead) return true;
+        if (witchHasSave && killTarget && wNum !== killTarget && witchSaveAction === null) return false;
+        if (witchPoisonActive && witchPoisonTarget === null) return false;
+        return true;
+      },
+      render() {
+        if (wDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫已阵亡，无法行动</div></div>';
+        let h = '';
+        if (killTarget) h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
+        const wik = wNum === killTarget;
+        if (wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+        if (witchHasSave && killTarget && !wik) {
+          h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>';
+          h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">解药已使用或无目标可救</div></div>';
+        }
+        if (witchHasPoison) {
+          h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+          h += '<div class="action-btn ' + (!witchPoisonActive ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">毒药已使用</div></div>';
+        }
+        if (witchPoisonActive) h += renderGrid({ grayedNums: deadPlayers, disabledNums: [wNum], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (wDead) return; if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { if (!wDead) { witchPoisonTarget = num; render(currentStep); } },
+    });
+
+    // 4. 机械狼技能 / 5. 装甲狼技能
+    pushLearnedNightStep(s, 'mech');
+    pushLearnedNightStep(s, 'armor');
+
+    // 6. 通灵师验人（不能重复查验同一人）
+    s.push({ title: '通灵师验人', subtitle: rl + ' - 验人',
+      desc: sDead ? '通灵师已阵亡，无法查验' : '请选择通灵师查验的目标（不能重复查验同一人）',
+      canProceed: () => sDead || seerCheckTarget !== null,
+      render() {
+        if (sDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">通灵师已阵亡，无法查验</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(seerCheckTarget) + '</div></div>';
+        return h;
+      },
+      handleSelect(num) { if (!sDead && mediumChecked.indexOf(num) < 0) { seerCheckTarget = num; render(currentStep); } },
+    });
+
+    // 7. 天亮
+    s.push({ title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.slice().sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        if (armorNightAction) h += '<div style="margin-top:8px;font-size:14px;color:#aab">装甲狼' + (armorNightAction.type === 'shield' ? '守' : armorNightAction.type === 'poison' ? '毒' : '验') + ': ' + armorNightAction.target + ' 号</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+
+    // 8. 猎人复仇开枪 + 连锁 + 学猎人夜间复仇
+    s.push({ title: '猎人复仇开枪', subtitle: '晨曦',
+      desc() { const h = getAssigned('hunter'); return h ? h + ' 号猎人在夜晚被刀，可以开枪带走一人' : ''; },
+      canProceed: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      autoSkip: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      render() {
+        if (!canHunterRevenge()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">猎人未被刀死，无需复仇开枪</div></div>';
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: hunterRevengeTarget ? [hunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterRevengeTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人复仇开枪带走</div><div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { hunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+    pushLearnedChainSteps(s, 'revenge');
+    pushLearnedRevengeSteps(s);
+
+    // 9. 白天放逐 + 猎人开枪 + 连锁
+    pushArmorDaySteps(s);
     return s;
   }
 
@@ -3158,8 +3773,11 @@ header .subtitle {
       night: {
         wolfKill: killTarget,
         mechLearn: round === 1 ? learnTarget : null,
+        armorLearn: round === 1 ? armorLearnTarget : null,
         mechNightAction: mechNightAction ? { type: mechNightAction.type, target: mechNightAction.target } : null,
+        armorNightAction: armorNightAction ? { type: armorNightAction.type, target: armorNightAction.target } : null,
         mechExtraKill: mechExtraKill,
+        armorExtraKill: armorExtraKill,
         seerCheck: seerCheckTarget,
         witchSave: witchSaveAction,
         witchPoison: witchPoisonTarget,
@@ -3183,6 +3801,8 @@ header .subtitle {
     if (hunterRevengeTarget && !nightDeaths.includes(hunterRevengeTarget)) dayDeaths.push(hunterRevengeTarget);
     if (mechChainShotTarget && !nightDeaths.includes(mechChainShotTarget)) dayDeaths.push(mechChainShotTarget);
     if (mechHunterRevengeTarget && !nightDeaths.includes(mechHunterRevengeTarget)) dayDeaths.push(mechHunterRevengeTarget);
+    if (armorChainShotTarget && !nightDeaths.includes(armorChainShotTarget)) dayDeaths.push(armorChainShotTarget);
+    if (armorHunterRevengeTarget && !nightDeaths.includes(armorHunterRevengeTarget)) dayDeaths.push(armorHunterRevengeTarget);
     if (knightDuelTarget && !nightDeaths.includes(knightDuelTarget)) dayDeaths.push(knightDuelTarget);
     const existing = gameLog.find(e => e.round === round);
     if (existing) {
@@ -3197,6 +3817,8 @@ header .subtitle {
         hunterRevenge: hunterRevengeTarget,
         mechChainShot: mechChainShotTarget,
         mechHunterRevenge: mechHunterRevengeTarget,
+        armorChainShot: armorChainShotTarget,
+        armorHunterRevenge: armorHunterRevengeTarget,
         knightDuel: knightDuelTarget,
         wolfSuicide: wolfSuicide,
         deaths: dayDeaths,
@@ -3214,6 +3836,12 @@ header .subtitle {
     if (hunterRevengeTarget) addDeath(hunterRevengeTarget);
     if (mechChainShotTarget) addDeath(mechChainShotTarget);
     if (mechHunterRevengeTarget) addDeath(mechHunterRevengeTarget);
+    if (armorChainShotTarget) addDeath(armorChainShotTarget);
+    if (armorHunterRevengeTarget) addDeath(armorHunterRevengeTarget);
+    // 通灵师查验记录（不能重复查验同一名玩家）
+    if (boardType === 'armor' && seerCheckTarget != null && mediumChecked.indexOf(seerCheckTarget) < 0) {
+      mediumChecked.push(seerCheckTarget);
+    }
     // 追踪摄梦人连续梦游（被恐惧 / 死亡则中断，需重新累计）
     if (boardType === 'nightmare') {
       const dw = getAssigned('dreamweaver');
@@ -3316,6 +3944,11 @@ header .subtitle {
       const ts = ri ? TYPE_STYLES[ri.type] : { cls: '', label: '' };
       let display = ri ? ri.label : '?';
                   if (rk === 'mech' && learnTarget) display += ' (学' + getRoleDisplay(learnTarget) + ')';
+      if (rk === 'armor' && armorLearnTarget) {
+        display += assignments[armorLearnTarget] === 'mech'
+          ? ' (机械装甲狼' + (getLearnedRoleDisplay('armor') ? '·学' + getLearnedRoleDisplay('armor') : '') + ')'
+          : ' (学' + getRoleDisplay(armorLearnTarget) + ')';
+      }
       if (rk === 'whiteWolfKing') display = '白狼王';
       if (rk === 'whiteWolfKing') display = '白狼王';
       let ws = 0;
@@ -3687,7 +4320,7 @@ header .subtitle {
       logging: false,
     }).then(function(canvas) {
       var link = document.createElement('a');
-      var boardName = boardType === 'wolfking' ? '狼王守卫' : boardType === 'whitewolfking' ? '白狼王' : boardType === 'muteElder' ? '禁言长老' : boardType === 'nightmare' ? '梦魇' : '机械狼';
+      var boardName = boardDisplayName(boardType);
       var now = new Date();
       var timeStr = ('0' + now.getHours()).slice(-2) + '-' + ('0' + now.getMinutes()).slice(-2);
       link.download = boardName + '_' + timeStr + '.png';
@@ -3703,6 +4336,10 @@ header .subtitle {
 
   function resetApp() {
     assignments = {}; killTarget = null; learnTarget = null;
+    armorLearnTarget = null; armorNightAction = null; armorHasUsedPoison = false;
+    armorActionSkipped = false; armorExtraKill = null; armorExtraKillUsed = false;
+    armorChainShotTarget = null; armorHunterRevengeTarget = null;
+    armorShieldUsed = false; mechShieldUsed = false; mediumChecked = [];
     seerCheckTarget = null; witchSaveAction = null; witchPoisonActive = false;
     witchPoisonTarget = null; guardProtectTarget = null; lastGuardTarget = null; lastMuteTarget = null;
     banishedPlayer = null; hunterShotTarget = null; hunterRevengeTarget = null; wolfKingShotTarget = null; whiteWolfKingShotTarget = null; mechChainShotTarget = null; mechHunterRevengeTarget = null;
@@ -3749,7 +4386,14 @@ header .subtitle {
         acts.push('机械狼' + maLabel + ' <span class="act">' + ma.target + '号</span>');
       }
       if (entry.night.mechExtraKill) acts.push('机械狼刀 <span class="act">' + entry.night.mechExtraKill + '号</span>');
-      if (entry.night.seerCheck) acts.push('预言家验 <span class="act">' + entry.night.seerCheck + '号</span>');
+      if (entry.night.armorLearn) acts.push('装甲狼学 <span class="act">' + entry.night.armorLearn + '号</span>');
+      if (entry.night.armorNightAction) {
+        const aa = entry.night.armorNightAction;
+        const aLabel = aa.type === 'shield' ? '守' : aa.type === 'poison' ? '毒' : '验';
+        acts.push('装甲狼' + aLabel + ' <span class="act">' + aa.target + '号</span>');
+      }
+      if (entry.night.armorExtraKill) acts.push('装甲狼刀 <span class="act">' + entry.night.armorExtraKill + '号</span>');
+      if (entry.night.seerCheck) acts.push((boardType === 'armor' ? '通灵师验 ' : '预言家验 ') + '<span class="act">' + entry.night.seerCheck + '号</span>');
       if (entry.night.witchSave === 'save') acts.push('女巫救 <span class="act">' + entry.night.wolfKill + '号</span>');
       else if (entry.night.witchSave === 'no-save' && entry.night.wolfKill) acts.push('女巫不救');
       if (entry.night.witchPoison) acts.push('女巫毒 <span class="act">' + entry.night.witchPoison + '号</span>');
@@ -3781,6 +4425,8 @@ header .subtitle {
       if (entry.day.hunterRevenge) dActs.push('猎人复仇开枪 <span class="act">' + entry.day.hunterRevenge + '号</span>');
       if (entry.day.mechChainShot) dActs.push('机械狼猎人开枪 <span class="act">' + entry.day.mechChainShot + '号</span>');
       if (entry.day.mechHunterRevenge) dActs.push('机械狼猎人开枪 <span class="act">' + entry.day.mechHunterRevenge + '号</span>');
+      if (entry.day.armorChainShot) dActs.push('装甲狼猎人开枪 <span class="act">' + entry.day.armorChainShot + '号</span>');
+      if (entry.day.armorHunterRevenge) dActs.push('装甲狼猎人开枪 <span class="act">' + entry.day.armorHunterRevenge + '号</span>');
       if (entry.day.wolfKingShot) dActs.push('狼王开枪 <span class="act">' + entry.day.wolfKingShot + '号</span>');
       if (entry.day.whiteWolfKingShot) dActs.push('白狼王开枪 <span class="act">' + entry.day.whiteWolfKingShot + '号</span>');
 	      if (entry.day.wolfSuicide && typeof entry.day.wolfSuicide === 'number') dActs.push('狼人自爆 <span class="act">' + entry.day.wolfSuicide + '号</span>');
@@ -3801,11 +4447,13 @@ header .subtitle {
   // ─── Game state overlay ────────────────────────────────────
   function buildGameStateHTML() {
     const seer   = getAssigned('seer');
+    const medium = getAssigned('medium');
     const witch  = getAssigned('witch');
     const hunter = getAssigned('hunter');
     const guard  = getAssigned('guard');
     const wolves = getAssignedAll('wolf');
     const mech   = getAssigned('mech');
+    const armor  = getAssigned('armor');
     const wolfKing = getAssigned('wolfKing');
     const whiteWolfKing = getAssigned('whiteWolfKing');
     const dreamweaver = getAssigned('dreamweaver');
@@ -3816,6 +4464,8 @@ header .subtitle {
       ? seer && witch && hunter && guard && wolves.length === 3 && whiteWolfKing
       : boardType === 'nightmare'
       ? seer && witch && hunter && dreamweaver && wolves.length === 3 && nightmare
+      : boardType === 'armor'
+      ? medium && witch && hunter && guard && wolves.length === 2 && mech && armor
       : seer && witch && hunter && guard && wolves.length === 3 && mech;
     const villagers = getAssignedAll('villager');
 
@@ -3824,6 +4474,10 @@ header .subtitle {
     html += '<div class="result-summary">';
     if (boardType === 'mech') {
       html += '<div class="result-summary-item"><span class="label">机械狼学习</span><span class="value">' + (learnTarget ? learnTarget + ' 号 (' + getRoleDisplay(learnTarget) + ')' : '?') + '</span></div>';
+    }
+    if (boardType === 'armor') {
+      html += '<div class="result-summary-item"><span class="label">机械狼学习</span><span class="value">' + (learnTarget ? learnTarget + ' 号 (' + getRoleDisplay(learnTarget) + ')' : '?') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">装甲狼学习</span><span class="value">' + (armorLearnTarget ? armorLearnTarget + ' 号 (' + getRoleDisplay(armorLearnTarget) + ')' + (assignments[armorLearnTarget] === 'mech' ? ' → 机械装甲狼' : '') : '?') + '</span></div>';
     }
     html += '<div class="result-summary-item"><span class="label">当前轮次</span><span class="value">第 ' + round + ' 轮</span></div>';
     html += '<div class="result-summary-item"><span class="label">出局玩家</span><span class="value">' + (deadPlayers.length ? deadPlayers.sort((a,b)=>a-b).join(', ') : '无') + ' 号</span></div>';
@@ -3840,6 +4494,11 @@ header .subtitle {
       const ts = ri ? TYPE_STYLES[ri.type] : (allRolesDone ? TYPE_STYLES.good : { cls: '', label: '' });
       let display = ri ? ri.label : (allRolesDone ? '平民' : '未分配');
       if (rk === 'mech' && learnTarget) display += ' (学' + getRoleDisplay(learnTarget) + ')';
+      if (rk === 'armor' && armorLearnTarget) {
+        display += assignments[armorLearnTarget] === 'mech'
+          ? ' (机械装甲狼' + (getLearnedRoleDisplay('armor') ? '·学' + getLearnedRoleDisplay('armor') : '') + ')'
+          : ' (学' + getRoleDisplay(armorLearnTarget) + ')';
+      }
       let ws = 0;
       if (ri && gameWinner) {
         if (gameWinner === 'good') {
@@ -3895,13 +4554,21 @@ header .subtitle {
       html += '<div class="rule-item"><span class="rule-desc">机械狼毒到神</span><span class="rule-score">+2</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">机械狼守到女巫毒药</span><span class="rule-score">+2</span></div>';
     }
+    if (boardType === 'armor') {
+      html += '<div class="rule-item"><span class="rule-desc">机械狼额外刀人出局</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">装甲狼额外刀人出局</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">装甲狼查验到神</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">装甲狼毒到神</span><span class="rule-score">+2</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">装甲狼守到女巫毒药</span><span class="rule-score">+2</span></div>';
+    }
     if (boardType === 'nightmare') {
       html += '<div class="rule-item"><span class="rule-desc">摄梦人梦游免死</span><span class="rule-score">+2</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到神</span><span class="rule-score">+1</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到狼人</span><span class="rule-score negative">-1</span></div>';
     }
-    html += '<div class="rule-item"><span class="rule-desc">预言家验到狼人</span><span class="rule-score">+1</span></div>';
+    html += '<div class="rule-item"><span class="rule-desc">' + (boardType === 'armor' ? '通灵师验到狼人' : '预言家验到狼人') + '</span><span class="rule-score">+1</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫救起好人</span><span class="rule-score">+2</span></div>';
+    html += '<div class="rule-item"><span class="rule-desc">女巫不救自刀狼人</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫毒到狼人</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">守卫守到狼刀</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item" style="border-bottom:none"><span class="rule-desc">平民替神挡刀</span><span class="rule-score">+1</span></div>';
@@ -3912,7 +4579,7 @@ header .subtitle {
     html += '<div class="rule-cat-title">白天行动</div>';
     html += '<div class="rule-item"><span class="rule-desc">狼人获得警长（首轮）</span><span class="rule-score">+1 / 人</span></div>';
     html += '<div class="rule-sub" style="padding:0 0 6px">每名存活狼人各获得</div>';
-    html += '<div class="rule-item"><span class="rule-desc">预言家当选警长（首轮）</span><span class="rule-score">+1</span></div>';
+    html += '<div class="rule-item"><span class="rule-desc">' + (boardType === 'armor' ? '通灵师当选警长（首轮）' : '预言家当选警长（首轮）') + '</span><span class="rule-score">+1</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">猎人开枪带走狼人</span><span class="rule-score">+4</span></div>';
     if (boardType === 'muteElder') {
       html += '<div class="rule-item"><span class="rule-desc">骑士决斗杀死狼人</span><span class="rule-score">+4</span></div>';
@@ -4326,8 +4993,8 @@ header .subtitle {
     if (board === boardType) return;
     document.getElementById('boardSelectOverlay').classList.remove('open');
     initRoles(board);
-    document.getElementById('boardTitle').textContent = board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : board === 'nightmare' ? '梦魇' : '机械狼';
-    document.title = '狼人杀(' + (board === 'wolfking' ? '狼王守卫' : board === 'whitewolfking' ? '白狼王' : board === 'muteElder' ? '禁言长老' : board === 'nightmare' ? '梦魇' : '机械狼') + ')';
+    document.getElementById('boardTitle').textContent = boardDisplayName(board);
+    document.title = '狼人杀(' + boardDisplayName(board) + ')';
     resetApp();
   }
 
