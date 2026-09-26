@@ -2040,8 +2040,10 @@ header .subtitle {
   //  装甲狼板子（12人迷雾装甲/机械装甲）
   //  狼：机械狼 / 装甲狼 / 两普狼    好人：通灵师 / 女巫 / 猎人 / 守卫 / 四平民
   //  带刀顺序：两普狼 > 机械狼 > 装甲狼
-  //  首夜：机械狼学 > 装甲狼学 > 守卫 > 狼 > 女巫 > 通灵师 > 天亮
-  //  次夜：守卫 > 带刀狼 > 女巫 > 机械狼技能 > 装甲狼技能 > 通灵师 > 天亮
+  //  首夜：装甲狼举手 > 通灵师举手 > 守卫(记录+守) > 小狼(记录+刀) > 女巫(记录+救人/毒)
+  //        > 猎人(记录) > 机械狼(记录+学习) > 装甲狼(确认+学习) > 通灵师(确认+验人) > 天亮
+  //  次夜：守卫 > 小狼 > 女巫 > 机械狼技能 > 装甲狼技能 > 通灵师 > 天亮
+  //        （去掉首夜两个举手确认环节；普狼出局后「小狼请睁眼」页仍保留，刀人页交给当前带刀狼）
   //  结算优先：狼刀 > 女巫的毒 > 机械毒/刀
   // ═══════════════════════════════════════════════════════════════
 
@@ -2187,80 +2189,90 @@ header .subtitle {
     pushLearnedChainSteps(s, 'shot');
   }
 
+  // ─── 装甲狼板子：位置记录（举手确认 / 请睁眼）──────────────
+  function armorSeatText(roleKey) {
+    const label = ROLES[roleKey] ? ROLES[roleKey].label : roleKey;
+    const nums = getAssignedAll(roleKey);
+    if (nums.length === 0) return label + '：未记录';
+    return label + '：' + nums.map(n => n + ' 号' + (isDead(n) ? '（已出局）' : '')).join('、');
+  }
+  function armorSeatBar(roleKeys) {
+    return '<div class="kill-info" style="margin-top:0"><div class="kill-label">已记录位置</div><div class="kill-value">'
+      + roleKeys.map(armorSeatText).join('　') + '</div></div>';
+  }
+  // 记录角色位置：页面始终保留，已记录后仍可改号（改到平民座位时自动让出旧座位）
+  function pushArmorAssignStep(s, roleKey, title, descText, afterAssign) {
+    s.push({
+      title: title, subtitle: '第1晚',
+      desc: descText || ('请点击记录' + ROLES[roleKey].label + '的号码'),
+      canProceed: () => getAssigned(roleKey) !== null,
+      render() {
+        const sel = getAssigned(roleKey);
+        let h = '';
+        if (sel != null) h += '<div class="check-info"><div class="info-label">' + ROLES[roleKey].label + '位置</div><div class="cv">' + sel + ' 号</div></div>';
+        // 其他角色占用的座位置灰；平民/未分配座位可点选，便于回头改错号
+        const locked = allAssignedNums().filter(n => n !== sel && assignments[n] !== 'villager');
+        h += renderGrid({ grayedNums: locked, selectedNums: sel ? [sel] : undefined });
+        return h;
+      },
+      handleSelect(num) {
+        const prev = getAssigned(roleKey);
+        if (prev === num) return;
+        const occ = assignments[num];
+        if (occ && occ !== 'villager') return;   // 已被其他角色占用
+        if (prev != null) assignments[prev] = 'villager';
+        assign(num, roleKey);
+        if (afterAssign) afterAssign();
+        render(currentStep);
+      },
+    });
+  }
+
   // ─── 装甲狼板子 Round 1（首夜 + 警长 + 白天）───────────────
+  //  首夜睁眼顺序（每个角色只睁一次眼，记录位置与操作相邻）：
+  //    装甲狼举手确认 → 通灵师举手确认 →
+  //    守卫（记录+守人）→ 小狼（记录+刀人）→ 女巫（记录+救人/毒人）→
+  //    猎人（记录）→ 机械狼（记录+学习）→ 装甲狼（确认+学习）→ 通灵师（确认+验人）
   function buildArmorRound1Steps() {
     const s = [];
-    const assignStep = (roleKey, title) => s.push({
-      title: title, subtitle: '第1晚', desc: '请点击选择' + ROLES[roleKey].label + '的号码',
-      canProceed: () => getAssigned(roleKey) !== null,
-      render() { const sel = getAssigned(roleKey); return renderGrid({ grayedNums: grayedExcept(roleKey), selectedNums: sel ? [sel] : undefined }); },
-      handleSelect(num) { const p = getAssigned(roleKey); if (p) unassign(p); assign(num, roleKey); render(currentStep); },
+    const fillVillagers = () => {
+      const used = new Set(Object.keys(assignments).map(Number));
+      for (let i = 1; i <= TOTAL; i++) { if (!used.has(i)) assignments[i] = 'villager'; }
+    };
+
+    // 1-2. 举手确认：先记录装甲狼与通灵师的位置
+    pushArmorAssignStep(s, 'armor', '装甲狼举手确认', '请让装甲狼举手，点击记录其号码');
+    pushArmorAssignStep(s, 'medium', '通灵师举手确认', '请让通灵师举手，点击记录其号码');
+
+    // 3-4. 守卫：记录位置 → 守人
+    pushArmorAssignStep(s, 'guard', '守卫请睁眼', '请点击记录守卫的号码');
+    s.push({ title: '守卫守人', subtitle: '第1晚 - 守人', desc: '请选择守卫守护的目标，也可以选择空守',
+      canProceed: () => guardProtectTarget !== null,
+      render() { let h = armorSeatBar(['guard']); h += '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' }); return h; },
+      handleAction(act) { if (act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
+      handleSelect(num) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); },
     });
 
-    // 分配神职
-    assignStep('medium', '通灵师睁眼');
-    assignStep('witch', '女巫睁眼');
-    assignStep('hunter', '猎人睁眼');
-    assignStep('guard', '守卫睁眼');
-    // 两普狼：睁眼后直接刀人
-    s.push({ title: '小狼睁眼', subtitle: '第1晚', desc: '请选择2名小狼的号码',
+    // 5-6. 小狼：记录位置 → 刀人
+    s.push({ title: '小狼请睁眼', subtitle: '第1晚', desc: '请选择2名小狼的号码',
       canProceed: () => getAssignedAll('wolf').length === 2,
       render() { const sel = getAssignedAll('wolf'); const left = 2 - sel.length; return renderGrid({ grayedNums: grayedExcept('wolf'), selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名小狼' : '已选2名小狼' }); },
       handleSelect(num) { const cur = getAssignedAll('wolf'); const idx = cur.indexOf(num); if (idx >= 0) unassign(num); else if (cur.length < 2) assign(num, 'wolf'); render(currentStep); },
     });
-    s.push({ title: '小狼行动', subtitle: '第1晚 - 刀人', desc: '请选择小狼刀人的目标号码',
+    s.push({ title: '小狼刀人', subtitle: '第1晚 - 刀人', desc: '请选择小狼刀人的目标号码',
       canProceed: () => killTarget !== null,
-      render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+      render() { let h = armorSeatBar(['wolf']); h += '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
       handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
       handleSelect(num) { killTarget = num; render(currentStep); },
     });
-    // 机械狼 / 装甲狼：两只都登记齐之后才开始学习
-    assignStep('mech', '机械狼睁眼');
-    // 装甲狼（最后分配，剩余座位自动补平民；到此全场身份已齐）
-    s.push({ title: '装甲狼睁眼', subtitle: '第1晚', desc: '请点击选择装甲狼的号码',
-      canProceed: () => getAssigned('armor') !== null,
-      render() { const sel = getAssigned('armor'); return renderGrid({ grayedNums: grayedExcept('armor'), selectedNums: sel ? [sel] : undefined }); },
-      handleSelect(num) {
-        const p = getAssigned('armor'); if (p) unassign(p);
-        assign(num, 'armor');
-        const used = new Set(Object.keys(assignments).map(Number));
-        for (let i = 1; i <= TOTAL; i++) { if (!used.has(i)) assignments[i] = 'villager'; }
-        render(currentStep);
-      },
-    });
-    // 机械狼学习在前：装甲狼若学到机械狼，需要继承机械狼的学习结果
-    s.push({ title: '机械狼学习', subtitle: '第1晚 - 学习', desc: '请选择机械狼学习的目标（获得其身份技能，第二天后才可使用）',
-      canProceed: () => learnTarget !== null,
-      render() { const mn = getAssigned('mech'); let h = renderGrid({ grayedNums: [], disabledNums: mn ? [mn] : [], selectedNums: learnTarget ? [learnTarget] : undefined, selectedClass: 'learn-target' }); if (learnTarget) h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(learnTarget) + '</div></div>'; return h; },
-      handleSelect(num) { learnTarget = num; render(currentStep); },
-    });
-    // 装甲狼学习
-    s.push({ title: '装甲狼学习', subtitle: '第1晚 - 学习', desc: '请选择装甲狼学习的目标（学机械狼将升级为「机械装甲狼」）',
-      canProceed: () => armorLearnTarget !== null,
-      render() {
-        const ar = getAssigned('armor');
-        let h = renderGrid({ grayedNums: [], disabledNums: ar ? [ar] : [], selectedNums: armorLearnTarget ? [armorLearnTarget] : undefined, selectedClass: 'learn-target' });
-        if (armorLearnTarget) {
-          h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(ar) + '</div></div>';
-          if (assignments[armorLearnTarget] === 'mech') h += '<div class="warning-note">装甲狼学到机械狼 → 机械装甲狼，继承机械狼所学的身份与技能</div>';
-        }
-        return h;
-      },
-      handleSelect(num) { armorLearnTarget = num; render(currentStep); },
-    });
-    // 守卫守人（首夜）
-    s.push({ title: '守卫守人', subtitle: '第1晚 - 守人', desc: '请选择守卫守护的目标，也可以选择空守',
-      canProceed: () => guardProtectTarget !== null,
-      render() { let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' }); return h; },
-      handleAction(act) { if (act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
-      handleSelect(num) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); },
-    });
-    // 女巫行动（首夜）
+
+    // 7-8. 女巫：记录位置 → 救人/毒人
+    pushArmorAssignStep(s, 'witch', '女巫请睁眼', '请点击记录女巫的号码');
     s.push({ title: '女巫行动', subtitle: '第1晚 - 救人/毒人', desc: '请记录女巫的行动',
       canProceed() { const wn = getAssigned('witch'); const ik = wn === killTarget; if (killTarget && !ik && witchSaveAction === null) return false; if (witchPoisonActive && witchPoisonTarget === null) return false; return true; },
       render() {
         const wn = getAssigned('witch'); const ik = wn === killTarget; if (ik && witchSaveAction === null) witchSaveAction = 'no-save';
-        let h = '';
+        let h = armorSeatBar(['witch']);
         if (killTarget) {
           h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">小狼首夜刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
           if (ik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
@@ -2277,11 +2289,44 @@ header .subtitle {
       handleAction(act) { if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
       handleSelect(num) { witchPoisonTarget = num; render(currentStep); },
     });
+
+    // 9. 猎人：记录位置（无夜间技能）
+    pushArmorAssignStep(s, 'hunter', '猎人请睁眼', '请点击记录猎人的号码');
+
+    // 10-11. 机械狼：记录位置（剩余座位补平民）→ 学习
+    pushArmorAssignStep(s, 'mech', '机械狼请睁眼', '请点击记录机械狼的号码', fillVillagers);
+    // 机械狼学习在前：装甲狼若学到机械狼，需要继承机械狼的学习结果
+    s.push({ title: '机械狼学习', subtitle: '第1晚 - 学习', desc: '请选择机械狼学习的目标（获得其身份技能，第二天后才可使用）',
+      canProceed: () => learnTarget !== null,
+      render() { const mn = getAssigned('mech'); let h = armorSeatBar(['mech']); h += renderGrid({ grayedNums: [], disabledNums: mn ? [mn] : [], selectedNums: learnTarget ? [learnTarget] : undefined, selectedClass: 'learn-target' }); if (learnTarget) h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(learnTarget) + '</div></div>'; return h; },
+      handleSelect(num) { learnTarget = num; render(currentStep); },
+    });
+
+    // 12-13. 装甲狼：确认位置（举手确认时已记录）→ 学习
+    pushArmorAssignStep(s, 'armor', '装甲狼请睁眼', '装甲狼位置已在举手确认时记录，确认后请选择学习目标');
+    s.push({ title: '装甲狼学习', subtitle: '第1晚 - 学习', desc: '请选择装甲狼学习的目标（学机械狼将升级为「机械装甲狼」）',
+      canProceed: () => armorLearnTarget !== null,
+      render() {
+        const ar = getAssigned('armor');
+        let h = armorSeatBar(['armor']);
+        h += renderGrid({ grayedNums: [], disabledNums: ar ? [ar] : [], selectedNums: armorLearnTarget ? [armorLearnTarget] : undefined, selectedClass: 'learn-target' });
+        if (armorLearnTarget) {
+          h += '<div class="check-info"><div class="info-label">学习结果</div><div class="cv">' + getRoleDisplayFull(ar) + '</div></div>';
+          if (assignments[armorLearnTarget] === 'mech') h += '<div class="warning-note">装甲狼学到机械狼 → 机械装甲狼，继承机械狼所学的身份与技能</div>';
+        }
+        return h;
+      },
+      handleSelect(num) { armorLearnTarget = num; render(currentStep); },
+    });
+
+    // 14-15. 通灵师：确认位置（举手确认时已记录）→ 验人
+    pushArmorAssignStep(s, 'medium', '通灵师请睁眼', '通灵师位置已在举手确认时记录，确认后请选择查验目标');
     // 通灵师验人（查验具体身份，不能重复查验同一人）
     s.push({ title: '通灵师验人', subtitle: '第1晚 - 验人', desc: '请选择通灵师查验的目标（查验具体身份，不能重复查验同一人）',
       canProceed: () => seerCheckTarget !== null,
       render() {
-        let h = renderGrid({ grayedNums: [], disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        let h = armorSeatBar(['medium']);
+        h += renderGrid({ grayedNums: [], disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
         if (seerCheckTarget) h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(seerCheckTarget) + '</div></div>';
         return h;
       },
@@ -2342,14 +2387,15 @@ header .subtitle {
     const wNum = getAssigned('witch');  const wDead = wNum == null || isDead(wNum);
     const gNum = getAssigned('guard');  const gDead = gNum == null || isDead(gNum);
 
-    // 1. 守卫守人（不能连续两晚守同一人）
+    // 1. 守卫守人（不能连续两晚守同一人）；页面始终保留
     s.push({ title: '守卫守人', subtitle: rl + ' - 守人',
       desc: gDead ? '守卫已阵亡，无法守人' : (lastGuardTarget != null ? lastGuardTarget + '号是昨晚守过的，今晚不能连续守' : '请选择守卫守护的目标，也可以选择不守'),
       canProceed: () => gDead || guardProtectTarget !== null,
       render() {
-        if (gDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">守卫已阵亡，无法守人</div></div>';
+        let h = armorSeatBar(['guard']);
+        if (gDead) return h + '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">守卫已阵亡，无法守人</div></div>';
         const disabled = lastGuardTarget != null ? [lastGuardTarget] : [];
-        let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>';
+        h += '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>';
         h += renderGrid({ grayedNums: deadPlayers, disabledNums: disabled, selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' });
         return h;
       },
@@ -2357,21 +2403,44 @@ header .subtitle {
       handleSelect(num) { if (!gDead) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); } },
     });
 
-    // 2. 带刀狼刀人（两普狼 > 机械狼 > 装甲狼）
-    if (carrier) {
-      const carrierLabel = carrier === 'wolf' ? '狼人' : carrier === 'mech' ? '机械狼' : '装甲狼';
-      s.push({ title: carrierLabel + '刀人', subtitle: rl + ' - 刀人',
-        desc: carrier === 'wolf' ? '请选择狼人刀人的目标号码' : carrierLabel + '是最后的执刀狼，请选择刀人目标',
-        canProceed: () => killTarget !== null,
-        render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
-        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
-        handleSelect(num) { killTarget = num; render(currentStep); },
+    // 2. 小狼阶段（页面始终保留：两普狼出局后「小狼请睁眼」仍在，刀人页交给当前带刀狼）
+    const wolfAliveNums = getAssignedAll('wolf').filter(n => !isDead(n));
+    const carrierLabel = carrier === 'mech' ? '机械狼' : carrier === 'armor' ? '装甲狼' : '小狼';
+    const pushArmorKnifeStep = (title, descText) => s.push({
+      title: title, subtitle: rl + ' - 刀人', desc: descText,
+      canProceed: () => killTarget !== null,
+      render() {
+        let h = armorSeatBar(['wolf']);
+        if (title !== '小狼刀人') h += '<div class="warning-note">两小狼均已出局，本晚由' + title.replace('刀人', '') + '带刀</div>';
+        h += '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>';
+        h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+
+    if (wolfAliveNums.length > 0) {
+      pushArmorKnifeStep('小狼刀人', '小狼（' + wolfAliveNums.join('、') + ' 号）请选择刀人的目标号码');
+    } else {
+      s.push({ title: '小狼请睁眼', subtitle: rl + ' - 位置',
+        desc: '两小狼均已出局' + (carrier ? '，本晚由' + carrierLabel + '带刀' : '，狼队已全部出局'),
+        canProceed: () => true,
+        render() {
+          let h = armorSeatBar(['wolf']);
+          h += '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">两小狼均已出局</div>';
+          h += '<div style="margin-top:8px;font-size:13px;color:#aab">' + (carrier ? '本晚由' + carrierLabel + '带刀' : '狼队已全部出局，无需刀人') + '</div></div>';
+          return h;
+        },
       });
-      // 双刀：学到狼人身份的执刀狼可以额外一刀（每次带刀仅一次）
+      if (carrier) pushArmorKnifeStep(carrierLabel + '刀人', carrierLabel + '是最后的执刀狼，请选择刀人目标');
+    }
+
+    // 双刀：学到狼人身份的执刀狼可以额外一刀（每次带刀仅一次）
+    if (carrier === 'mech' || carrier === 'armor') {
       const extraPair = carrier === 'mech' ? ['mech', '机械狼', () => mechExtraKill, (v) => { mechExtraKill = v; }, () => mechExtraKillUsed, (v) => { mechExtraKillUsed = v; }]
-        : carrier === 'armor' ? ['armor', '装甲狼', () => armorExtraKill, (v) => { armorExtraKill = v; }, () => armorExtraKillUsed, (v) => { armorExtraKillUsed = v; }]
-        : null;
-      if (extraPair && isDoubleKnifeLearner(extraPair[0]) && !extraPair[4]()) {
+        : ['armor', '装甲狼', () => armorExtraKill, (v) => { armorExtraKill = v; }, () => armorExtraKillUsed, (v) => { armorExtraKillUsed = v; }];
+      if (isDoubleKnifeLearner(extraPair[0]) && !extraPair[4]()) {
         const label = extraPair[1], getX = extraPair[2], setX = extraPair[3], setUsed = extraPair[5];
         s.push({ title: label + '额外刀人（双刀）', subtitle: rl + ' - 双刀',
           desc: label + '学到狼人身份，是双刀狼：可以额外刀一人（第二刀不破盾，两刀同目标可破盾）',
@@ -2388,7 +2457,7 @@ header .subtitle {
       }
     }
 
-    // 3. 女巫行动
+    // 3. 女巫行动（页面始终保留）
     s.push({ title: '女巫行动', subtitle: rl + ' - 救人/毒人', desc: wDead ? '女巫已阵亡，无法行动' : '请记录女巫的行动',
       canProceed() {
         if (wDead) return true;
@@ -2397,8 +2466,8 @@ header .subtitle {
         return true;
       },
       render() {
-        if (wDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫已阵亡，无法行动</div></div>';
-        let h = '';
+        let h = armorSeatBar(['witch']);
+        if (wDead) return h + '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫已阵亡，无法行动</div></div>';
         if (killTarget) h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
         const wik = wNum === killTarget;
         if (wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
@@ -2427,13 +2496,14 @@ header .subtitle {
     pushLearnedNightStep(s, 'mech');
     pushLearnedNightStep(s, 'armor');
 
-    // 6. 通灵师验人（不能重复查验同一人）
+    // 6. 通灵师验人（不能重复查验同一人）；页面始终保留
     s.push({ title: '通灵师验人', subtitle: rl + ' - 验人',
       desc: sDead ? '通灵师已阵亡，无法查验' : '请选择通灵师查验的目标（不能重复查验同一人）',
       canProceed: () => sDead || seerCheckTarget !== null,
       render() {
-        if (sDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">通灵师已阵亡，无法查验</div></div>';
-        let h = renderGrid({ grayedNums: deadPlayers, disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        let h = armorSeatBar(['medium']);
+        if (sDead) return h + '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">通灵师已阵亡，无法查验</div></div>';
+        h += renderGrid({ grayedNums: deadPlayers, disabledNums: mediumChecked, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
         if (seerCheckTarget) h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv">' + getRoleDisplayFull(seerCheckTarget) + '</div></div>';
         return h;
       },
