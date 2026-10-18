@@ -972,7 +972,7 @@ header .subtitle {
     hunter:  '被狼人刀死或被放逐出局时，可开枪带走一名玩家；被女巫毒死时不能开枪。',
     guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
     knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
-    lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。必须参与警长竞选；不能与预言家重复查验同一目标，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。',
+    lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。必须参与警长竞选；不能与预言家重复查验同一目标，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。注：两张预言家牌每晚的叫牌顺序由本助手随机决定，法官请按提示的「叫牌顺位」喊人，避免固定顺序被玩家摸出规律。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
@@ -1048,6 +1048,8 @@ header .subtitle {
   let lanternChecked = [];        // 灯影预言家已查验过的号码
   let knightConfirmedGood = [];   // 被骑士决斗证明为好人的号码（不可再查验）
   let knightDuelUsed = false;     // 骑士本局是否已用过决斗（一局仅一次）
+  // 两张预言家牌（真预言家 / 灯影预言家）每晚的叫牌顺序：null = 还没抽，抽定后本夜固定
+  let lanternBoardCheckOrder = null;
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
   let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
   let dreamNoSkillDead = [];     // 因梦游出局/跟随摄梦人出局而无技能的玩家（本回合）
@@ -1558,6 +1560,7 @@ header .subtitle {
     nightmareFearTarget = null;
     dreamNoSkillDead = [];
     lanternCheckTarget = null;
+    lanternBoardCheckOrder = null;   // 每夜重新随机叫牌顺序
     wolfSuicide = null;
     isDayPhase = false;
   }
@@ -3853,12 +3856,21 @@ header .subtitle {
   //     已翻牌的骑士，以及被骑士决斗证明的好人
   //   · 两人都必须参与警长竞选
   //   · 屠民需灯影预言家出局；骑士对其发起决斗则骑士断剑出局
+  //   · 两张预言家牌每晚的叫牌/查验顺序随机，防止法官固定先叫某一张被玩家摸出规律
   // ══════════════════════════════════════════════════════════════
   function lanternFillVillagers() {
     for (let i = 1; i <= TOTAL; i++) { if (!assignments[i]) assignments[i] = 'villager'; }
   }
+  // 每夜随机决定两张预言家牌谁先验：抽定后本夜不再变化（回退/前进不会重摇）
+  function lanternCheckOrder() {
+    if (!lanternBoardCheckOrder) {
+      lanternBoardCheckOrder = Math.random() < 0.5 ? ['seer', 'lanternSeer'] : ['lanternSeer', 'seer'];
+    }
+    return lanternBoardCheckOrder;
+  }
   // 灯影预言家板子：预言家 / 灯影预言家 的查验步骤
-  function pushLanternCheckStep(s, who, roundOne) {
+  // seq: 本夜叫牌顺位（1 或 2），仅用于提示法官先喊哪张牌
+  function pushLanternCheckStep(s, who, roundOne, seq) {
     const rl = roundOne ? '第1晚' : '第' + round + '晚';
     const isLantern = who === 'lanternSeer';
     const label = isLantern ? '灯影预言家' : '预言家';
@@ -3866,7 +3878,7 @@ header .subtitle {
     const selfDead = () => { const n = getAssigned(who); return n == null || isDead(n); };
     s.push({
       title: label + '验人',
-      subtitle: rl + ' - 验人',
+      subtitle: rl + ' - 验人' + (seq ? '（今晚叫牌顺位 ' + seq + '/2）' : ''),
       desc() {
         if (selfDead()) return label + '已阵亡，无法查验';
         return isLantern
@@ -3964,14 +3976,18 @@ header .subtitle {
     // 7. 骑士（仅首夜举手或摘盔示意）
     pushArmorAssignStep(s, 'knight', '骑士举手示意', '首夜骑士请举手或摘盔示意，点击记录骑士的号码', lanternFillVillagers);
 
-    // 8-9. 预言家
-    pushArmorAssignStep(s, 'seer', '预言家请睁眼', '请点击记录预言家的号码（两张预言家牌由法官开局前决定）', lanternFillVillagers);
-    pushLanternCheckStep(s, 'seer', true);
-
-    // 10-11. 灯影预言家（替身牌）
-    pushArmorAssignStep(s, 'lanternSeer', '灯影预言家确认',
-      '请记录灯影预言家的号码（法官开局前已决定，勿让玩家知晓）', lanternFillVillagers);
-    pushLanternCheckStep(s, 'lanternSeer', true);
+    // 8-11. 两张预言家牌：记录座位 + 验人
+    //   顺序每夜随机（记录座位也跟着走），避免法官固定先叫某一张牌
+    lanternCheckOrder().forEach((who, i) => {
+      if (who === 'seer') {
+        pushArmorAssignStep(s, 'seer', '预言家请睁眼',
+          '请点击记录预言家的号码（两张预言家牌由法官开局前决定）', lanternFillVillagers);
+      } else {
+        pushArmorAssignStep(s, 'lanternSeer', '灯影预言家确认',
+          '请记录灯影预言家的号码（法官开局前已决定，勿让玩家知晓；对外一律称「预言家」）', lanternFillVillagers);
+      }
+      pushLanternCheckStep(s, who, true, i + 1);
+    });
 
     // 12. 天亮
     s.push({ title: '天亮', subtitle: '第1天', desc: '首夜行动结算',
@@ -4094,11 +4110,8 @@ header .subtitle {
       handleSelect(num) { if (!wDead) { witchPoisonTarget = num; render(currentStep); } },
     });
 
-    // 4. 预言家验人
-    pushLanternCheckStep(s, 'seer', false);
-
-    // 5. 灯影预言家验人
-    pushLanternCheckStep(s, 'lanternSeer', false);
+    // 4-5. 两张预言家牌验人（顺序每夜随机）
+    lanternCheckOrder().forEach((who, i) => pushLanternCheckStep(s, who, false, i + 1));
 
     // 6. 天亮
     s.push({ title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
@@ -4770,6 +4783,7 @@ header .subtitle {
     mechNightAction = null; mechHasUsedPoison = false; mechActionSkipped = false; mechExtraKill = null; mechExtraKillUsed = false;
     knightDuelTarget = null;
     seerChecked = []; lanternCheckTarget = null; lanternChecked = []; knightConfirmedGood = []; knightDuelUsed = false;
+    lanternBoardCheckOrder = null;
     dreamTarget = null;
     lastDreamTarget = null;
     dreamNoSkillDead = [];
