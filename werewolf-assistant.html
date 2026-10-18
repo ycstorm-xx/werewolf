@@ -867,6 +867,7 @@ header .subtitle {
         <div class="action-btn" data-board="whitewolfking" style="display:block;padding:20px;font-size:18px">白狼王板子</div>
         <div class="action-btn" data-board="muteElder" style="display:block;padding:20px;font-size:18px">禁言长老板子</div>
         <div class="action-btn" data-board="nightmare" style="display:block;padding:20px;font-size:18px">梦魇板子</div>
+        <div class="action-btn" data-board="lanternSeer" style="display:block;padding:20px;font-size:18px">灯影预言家板子</div>
       </div>
     </div>
   </div>
@@ -881,7 +882,7 @@ header .subtitle {
 <script>
 (function() {
   // ─── Constants / Board config ────────────────────────────────
-  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare'
+  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare' | 'lanternSeer'
 
   let ROLES = {};
   function initRoles(board) {
@@ -926,6 +927,16 @@ header .subtitle {
       mech:   { label: '机械狼', type: 'wolf', count: 1 },
       armor:  { label: '装甲狼', type: 'wolf', count: 1 },
       villager: { label: '平民', type: 'good', count: 4 },
+    } : board === 'lanternSeer' ? {
+      // 12人灯影预言家：狼王 + 三普狼 / 预言家 + 女巫 + 守卫 + 骑士 + 灯影预言家(民坑) + 三平民
+      seer:   { label: '预言家', type: 'god',  count: 1 },
+      witch:  { label: '女巫',   type: 'god',  count: 1 },
+      guard:  { label: '守卫',   type: 'god',  count: 1 },
+      knight: { label: '骑士',   type: 'god',  count: 1 },
+      lanternSeer: { label: '灯影预言家', type: 'good', count: 1 },
+      wolf:   { label: '小狼',   type: 'wolf', count: 3 },
+      wolfKing: { label: '狼王', type: 'wolf', count: 1 },
+      villager: { label: '平民', type: 'good', count: 3 },
     } : {
       seer:   { label: '预言家', type: 'god',  count: 1 },
       witch:  { label: '女巫',   type: 'god',  count: 1 },
@@ -944,6 +955,7 @@ header .subtitle {
       : board === 'whitewolfking' ? '白狼王'
       : board === 'muteElder' ? '禁言长老'
       : board === 'nightmare' ? '梦魇'
+      : board === 'lanternSeer' ? '灯影预言家'
       : '机械狼';
   }
   const TYPE_STYLES = {
@@ -960,6 +972,7 @@ header .subtitle {
     hunter:  '被狼人刀死或被放逐出局时，可开枪带走一名玩家；被女巫毒死时不能开枪。',
     guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
     knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
+    lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。必须参与警长竞选；不能与预言家重复查验同一目标，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
@@ -1029,6 +1042,12 @@ header .subtitle {
   let mechShieldUsed = false;    // 机械狼学守卫 → 机械盾一次性（装甲狼板子）
   let mediumChecked = [];        // 通灵师已查验过的号码（不能重复查验）
   let knightDuelTarget = null;   // knight's duel target (muteElder board)
+  // ── 灯影预言家板子 (lanternSeer board) ─────────────────────────
+  let seerChecked = [];           // 预言家已查验过的号码（与灯影预言家不能重复查验）
+  let lanternCheckTarget = null;  // 灯影预言家今晚查验的目标
+  let lanternChecked = [];        // 灯影预言家已查验过的号码
+  let knightConfirmedGood = [];   // 被骑士决斗证明为好人的号码（不可再查验）
+  let knightDuelUsed = false;     // 骑士本局是否已用过决斗（一局仅一次）
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
   let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
   let dreamNoSkillDead = [];     // 因梦游出局/跟随摄梦人出局而无技能的玩家（本回合）
@@ -1253,14 +1272,18 @@ header .subtitle {
     const gods = boardType === 'muteElder' ? ['seer','witch','knight','muteElder']
       : boardType === 'nightmare' ? ['seer','witch','hunter','dreamweaver']
       : boardType === 'armor' ? ['medium','witch','hunter','guard']
+      : boardType === 'lanternSeer' ? ['seer','witch','guard','knight']
       : ['seer','witch','hunter','guard'];
     const deadGods = gods.filter(rk => {
       const n = getAssigned(rk);
       return n != null && isDead(n);
     }).length;
     if (deadGods === gods.length) return 'wolf';
-    const villagers = getAssignedAll('villager');
-    if (villagers.length > 0 && villagers.filter(n => isDead(n)).length === villagers.length) return 'wolf';
+    // 屠民：灯影预言家占民坑，必须与三平民一起出局才算屠民成功
+    const peasantRoles = boardType === 'lanternSeer' ? ['villager', 'lanternSeer'] : ['villager'];
+    let peasants = [];
+    peasantRoles.forEach(rk => { peasants = peasants.concat(getAssignedAll(rk)); });
+    if (peasants.length > 0 && peasants.filter(n => isDead(n)).length === peasants.length) return 'wolf';
     return null;
   }
 
@@ -1274,6 +1297,28 @@ header .subtitle {
     if (num == null) return false;
     const rk = assignments[num];
     return rk === 'seer' || rk === 'medium' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver';
+  }
+  // 是否「民坑」成员（灯影预言家属于平民阵营，占民坑）
+  function isPeasantNum(num) {
+    if (num == null) return false;
+    const rk = assignments[num];
+    if (rk === 'villager') return true;
+    return boardType === 'lanternSeer' && rk === 'lanternSeer';
+  }
+  // ── 灯影预言家板子：查验约束 ────────────────────────────────
+  // who: 'seer' | 'lanternSeer'
+  // 不能查验自己、已翻牌的骑士、被骑士决斗证明的好人，且两人不能重复查验同一目标
+  function lanternCheckBlocked(who, currentTarget) {
+    const d = [];
+    const push = (n) => { if (n != null && d.indexOf(n) < 0) d.push(n); };
+    push(getAssigned(who));
+    if (knightDuelTarget != null) push(getAssigned('knight'));
+    knightConfirmedGood.forEach(push);
+    seerChecked.forEach(push);
+    lanternChecked.forEach(push);
+    push(seerCheckTarget);
+    push(lanternCheckTarget);
+    return d.filter(n => n !== currentTarget);
   }
   function nightmareBlocksKill() {
     if (boardType !== 'nightmare') return false;
@@ -1363,6 +1408,11 @@ header .subtitle {
         else awardScore(getAssigned('seer'), 1, '验到狼人');
       }
     }
+    // 灯影预言家：其验人结果与实际阵营相反，验到好人时会显示为「狼人」
+    if (boardType === 'lanternSeer' && lanternCheckTarget != null) {
+      const ln = getAssigned('lanternSeer');
+      if (ln != null && !isWolfFactionNum(lanternCheckTarget)) awardScore(ln, 1, '灯影预言家验到狼人');
+    }
     // Witch save on good person
     const wn = getAssigned('witch');
     if (witchSaveAction === 'save' && killTarget && wn != null) {
@@ -1387,7 +1437,7 @@ header .subtitle {
       awardScore(gn, 2, '守到狼刀');
     }
     // Villager killed by wolf (not saved/guarded)
-    if (killTarget && isDead(killTarget) && assignments[killTarget] === 'villager') {
+    if (killTarget && isDead(killTarget) && isPeasantNum(killTarget)) {
       awardScore(killTarget, 1, '替神挡刀');
     }
   }
@@ -1448,7 +1498,7 @@ header .subtitle {
                  hunterShotTarget != null && canShootAsWolfKing(hunterShotTarget) ? hunterShotTarget : null;
       if (wk != null) {
         if (isGodNum(wolfKingShotTarget)) awardScore(wk, 2, '狼王开枪带走神职');
-        if (assignments[wolfKingShotTarget] === 'villager') awardScore(wk, 1, '狼王开枪带走平民');
+        if (isPeasantNum(wolfKingShotTarget)) awardScore(wk, 1, '狼王开枪带走平民');
       }
     }
     // White wolf king shot
@@ -1457,11 +1507,11 @@ header .subtitle {
       if (assignments[whiteWolfKingShotTarget] === 'villager') awardScore(wolfSuicide, 1, '白狼王开枪带走平民');
     }
     // Villager banished
-    if (banishedPlayer != null && assignments[banishedPlayer] === 'villager') {
+    if (banishedPlayer != null && isPeasantNum(banishedPlayer)) {
       awardScore(banishedPlayer, 1, '被放逐出局');
     }
-    // Knight duel scoring (muteElder board)
-    if (boardType === 'muteElder' && knightDuelTarget != null) {
+    // Knight duel scoring (muteElder / lanternSeer boards)
+    if ((boardType === 'muteElder' || boardType === 'lanternSeer') && knightDuelTarget != null) {
       const kn = getAssigned('knight');
       if (kn != null && isWolfFactionNum(knightDuelTarget)) {
         awardScore(kn, 4, '决斗杀死狼人');
@@ -1473,7 +1523,7 @@ header .subtitle {
     gameEndScored = true;
     // Surviving villagers get +2
     for (let i = 1; i <= TOTAL; i++) {
-      if (assignments[i] === 'villager' && !isDead(i)) {
+      if (isPeasantNum(i) && !isDead(i)) {
         awardScore(i, 2, '存活到游戏结束');
       }
     }
@@ -1507,6 +1557,7 @@ header .subtitle {
     dreamTarget = null;
     nightmareFearTarget = null;
     dreamNoSkillDead = [];
+    lanternCheckTarget = null;
     wolfSuicide = null;
     isDayPhase = false;
   }
@@ -1645,6 +1696,10 @@ header .subtitle {
     if (boardType === 'nightmare') {
       if (round === 1) return buildNightmareRound1Steps();
       return buildNightmareRound2PlusSteps();
+    }
+    if (boardType === 'lanternSeer') {
+      if (round === 1) return buildLanternSeerRound1Steps();
+      return buildLanternSeerRound2PlusSteps();
     }
     if (round === 1) return buildRound1Steps();
     return buildRound2PlusSteps();
@@ -3786,6 +3841,296 @@ header .subtitle {
     return s;
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // 灯影预言家板子（12人）
+  //   狼人：狼王 + 三普狼
+  //   神职：预言家、女巫、守卫、骑士
+  //   民坑：灯影预言家 ×1 + 三平民
+  //   规则来源：https://mp.weixin.qq.com/s/YYVSFv-sFBHfpmeGLSo9EA
+  //   · 灯影预言家属于平民阵营（占民坑），自己并不知道自己是灯影预言家
+  //   · 其每夜查验结果与实际阵营相反（验到狼人显示「好人」，验到好人显示「狼人」）
+  //   · 预言家与灯影预言家不能重复查验同一目标，不能查验自己、
+  //     已翻牌的骑士，以及被骑士决斗证明的好人
+  //   · 两人都必须参与警长竞选
+  //   · 屠民需灯影预言家出局；骑士对其发起决斗则骑士断剑出局
+  // ══════════════════════════════════════════════════════════════
+  function lanternFillVillagers() {
+    for (let i = 1; i <= TOTAL; i++) { if (!assignments[i]) assignments[i] = 'villager'; }
+  }
+  // 灯影预言家板子：预言家 / 灯影预言家 的查验步骤
+  function pushLanternCheckStep(s, who, roundOne) {
+    const rl = roundOne ? '第1晚' : '第' + round + '晚';
+    const isLantern = who === 'lanternSeer';
+    const label = isLantern ? '灯影预言家' : '预言家';
+    // 注意：首夜步骤是在分配角色之前构建的，阵亡状态必须惰性求值
+    const selfDead = () => { const n = getAssigned(who); return n == null || isDead(n); };
+    s.push({
+      title: label + '验人',
+      subtitle: rl + ' - 验人',
+      desc() {
+        if (selfDead()) return label + '已阵亡，无法查验';
+        return isLantern
+          ? '请选择灯影预言家查验的目标（不可与预言家重复同一目标）。注意：灯影预言家不知道自己是灯影预言家，查验结果与实际阵营相反'
+          : '请选择预言家查验的目标（不可重复查验：含已翻牌的骑士、被骑士证明的好人）';
+      },
+      canProceed: () => selfDead() || (isLantern ? lanternCheckTarget : seerCheckTarget) != null,
+      render() {
+        if (selfDead()) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">' + label + '已阵亡，无法查验</div></div>';
+        const sel = isLantern ? lanternCheckTarget : seerCheckTarget;
+        let h = renderGrid({
+          grayedNums: deadPlayers,
+          disabledNums: lanternCheckBlocked(who, sel),
+          selectedNums: sel != null ? [sel] : undefined,
+          selectedClass: 'learn-target',
+        });
+        if (sel != null) {
+          // 灯影预言家的查验结果与实际阵营相反
+          const shown = isLantern
+            ? (isWolfFactionNum(sel) ? '好人' : '狼人')
+            : (isWolfFactionNum(sel) ? '狼人' : '好人');
+          h += '<div class="check-info"><div class="info-label">查验结果'
+            + (isLantern ? '（灯影预言家看到的，与实际相反）' : '') + '</div>'
+            + '<div class="cv" style="font-size:28px">' + shown + '</div></div>';
+          if (isLantern) {
+            h += '<div class="warning-note">灯影预言家不知道自己就是灯影预言家，请勿提示其身份</div>';
+          }
+        }
+        return h;
+      },
+      handleSelect(num) {
+        if (selfDead()) return;
+        if (isLantern) {
+          if (num === seerCheckTarget) return;          // 不能与预言家重复
+          lanternCheckTarget = num;
+        } else {
+          if (num === lanternCheckTarget) lanternCheckTarget = null; // 避免与灯影撞车
+          seerCheckTarget = num;
+        }
+        render(currentStep);
+      },
+    });
+  }
+
+  // ─── 灯影预言家板子 Round 1（首夜 + 警长 + 白天）───────────
+  //  首夜睁眼顺序（依公众号文章流程）：
+  //    守卫 → 狼人 → 女巫 → 骑士（仅首夜举手）→ 预言家牌 → 替身牌（灯影预言家）→ 天亮 → 警长竞选
+  function buildLanternSeerRound1Steps() {
+    const s = [];
+    // 先把空座位预填为平民，方便神职/狼人「从民坑里挑座位」记录
+    lanternFillVillagers();
+
+    // 0-1. 守卫
+    pushArmorAssignStep(s, 'guard', '守卫请睁眼', '请点击记录守卫的号码', lanternFillVillagers);
+    s.push({ title: '守卫守人', subtitle: '第1晚 - 守人', desc: '请选择守卫守护的目标，也可以选择空守',
+      canProceed: () => guardProtectTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' }); return h; },
+      handleAction(act) { if (act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
+      handleSelect(num) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); },
+    });
+
+    // 2-4. 狼人：小狼 ×3 → 狼王举手示意 → 刀人
+    s.push({ title: '小狼睁眼', subtitle: '第1晚', desc: '请选择3名小狼的号码（狼王随后举手示意）',
+      canProceed: () => getAssignedAll('wolf').length === 3,
+      render() {
+        const sel = getAssignedAll('wolf'); const left = 3 - sel.length;
+        const locked = allAssignedNums().filter(n => sel.indexOf(n) < 0 && assignments[n] !== 'villager');
+        return renderGrid({ grayedNums: locked, selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名小狼' : '已选3名小狼' });
+      },
+      handleSelect(num) {
+        const cur = getAssignedAll('wolf');
+        if (cur.indexOf(num) >= 0) assignments[num] = 'villager';
+        else if (cur.length < 3) assign(num, 'wolf');
+        lanternFillVillagers();
+        render(currentStep);
+      },
+    });
+    pushArmorAssignStep(s, 'wolfKing', '狼王举手示意', '首夜狼王请举手示意，点击记录狼王的号码', lanternFillVillagers);
+    s.push({ title: '狼人行动', subtitle: '第1晚 - 刀人', desc: '请选择狼人今晚袭击的目标号码',
+      canProceed: () => killTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+
+    // 5-6. 女巫
+    pushArmorAssignStep(s, 'witch', '女巫请睁眼', '请点击记录女巫的号码', lanternFillVillagers);
+    s.push({ title: '女巫行动', subtitle: '第1晚 - 救人/毒人', desc: '请记录女巫的行动',
+      canProceed() { const wn = getAssigned('witch'); const ik = wn === killTarget; if (killTarget && !ik && witchSaveAction === null) return false; if (witchPoisonActive && witchPoisonTarget === null) return false; return true; },
+      render() { const wn = getAssigned('witch'); const ik = wn === killTarget; if (ik && witchSaveAction === null) witchSaveAction = 'no-save'; let h = ''; if (killTarget) { h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人首夜刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>'; if (ik) h += '<div class="warning-note">女巫被刀，无法自救</div>'; if (!ik) { h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">'; h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>'; h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>'; } } else { h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人首夜刀人</div><div class="kill-value">空刀</div></div>'; } h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">'; h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>'; h += '<div class="action-btn ' + (!witchPoisonActive && witchSaveAction !== null ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>'; if (witchPoisonActive) { h += renderGrid({ grayedNums: [], disabledNums: [wn], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' }); } return h; },
+      handleAction(act) { if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { witchPoisonTarget = num; render(currentStep); },
+    });
+
+    // 7. 骑士（仅首夜举手或摘盔示意）
+    pushArmorAssignStep(s, 'knight', '骑士举手示意', '首夜骑士请举手或摘盔示意，点击记录骑士的号码', lanternFillVillagers);
+
+    // 8-9. 预言家
+    pushArmorAssignStep(s, 'seer', '预言家请睁眼', '请点击记录预言家的号码（两张预言家牌由法官开局前决定）', lanternFillVillagers);
+    pushLanternCheckStep(s, 'seer', true);
+
+    // 10-11. 灯影预言家（替身牌）
+    pushArmorAssignStep(s, 'lanternSeer', '灯影预言家确认',
+      '请记录灯影预言家的号码（法官开局前已决定，勿让玩家知晓）', lanternFillVillagers);
+    pushLanternCheckStep(s, 'lanternSeer', true);
+
+    // 12. 天亮
+    s.push({ title: '天亮', subtitle: '第1天', desc: '首夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+
+    // 13. 警长竞选（预言家与灯影预言家必须参与）
+    s.push({ title: '最终竞选人', subtitle: '白天 - 竞选', desc: '选择最终成为警长的玩家号码（预言家与灯影预言家必须参与竞选）',
+      canProceed: () => sheriff !== null,
+      render() { const sel = typeof sheriff === 'number' ? sheriff : null; let h = renderGrid({ grayedNums: deadPlayers, selectedNums: sel ? [sel] : undefined }); h += '<div class="action-group" style="margin-top:12px"><div class="action-btn ' + (sheriff === 'none' ? 'active' : '') + '" data-act="no-sheriff">无人留到最后（无警长）</div></div>'; return h; },
+      handleSelect(num) { sheriff = num; render(currentStep); },
+      handleAction(act) { if (act === 'no-sheriff') { sheriff = 'none'; render(currentStep); } },
+    });
+
+    // 14. 白天放逐
+    s.push({ title: '白天放逐', subtitle: '第1天 - 投票', desc: '请选择被放逐的玩家号码',
+      canProceed: () => banishedPlayer !== null,
+      render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined }); },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+
+    // 15. 狼王开枪（被放逐时）
+    pushLanternWolfKingShotStep(s);
+    return s;
+  }
+
+  // 狼王被放逐后开枪（灯影预言家板子）
+  function pushLanternWolfKingShotStep(s) {
+    s.push({ title: '狼王开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ') 是狼王，可以开枪带走一人'; },
+      canProceed: () => !banishedPlayer || !canShootAsWolfKing(banishedPlayer) || wolfKingShotTarget !== null,
+      autoSkip: () => !banishedPlayer || !canShootAsWolfKing(banishedPlayer),
+      render() {
+        if (!banishedPlayer || !canShootAsWolfKing(banishedPlayer)) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">被放逐的玩家不是狼王，无需开枪</div></div>';
+        let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: wolfKingShotTarget ? [wolfKingShotTarget] : undefined, selectedClass: 'kill-target' });
+        if (wolfKingShotTarget) { h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">狼王开枪带走</div><div class="kill-value">' + wolfKingShotTarget + ' 号 (' + getRoleDisplay(wolfKingShotTarget) + ')</div></div>'; }
+        return h;
+      },
+      handleSelect(num) { if (num === banishedPlayer) return; wolfKingShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+  }
+
+  // ─── 灯影预言家板子 Round 2+（夜间 + 白天循环）──────────────
+  function buildLanternSeerRound2PlusSteps() {
+    const s = [];
+    const rl = '第' + round + '晚';
+    const gNum = getAssigned('guard'); const gDead = gNum == null || isDead(gNum);
+    const wNum = getAssigned('witch'); const wDead = wNum == null || isDead(wNum);
+    const wa = getAssignedAll('wolf').filter(n => !isDead(n)).length > 0
+      || (getAssigned('wolfKing') != null && !isDead(getAssigned('wolfKing')));
+
+    // 1. 守卫守人
+    s.push({ title: '守卫守人', subtitle: rl + ' - 守人', desc: gDead ? '守卫已阵亡，无法守人' : (lastGuardTarget != null ? lastGuardTarget + '号是昨晚守过的，今晚不能连续守' : '请选择守卫守护的目标，也可以选择不守'),
+      canProceed: () => gDead || guardProtectTarget !== null,
+      render() { if (gDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">守卫已阵亡，无法守人</div></div>'; const disabled = lastGuardTarget != null ? [lastGuardTarget] : []; let h = '<div class="action-group"><div class="action-btn ' + (guardProtectTarget === 0 ? 'active' : '') + '" data-act="no-guard">不守</div></div>'; h += renderGrid({ grayedNums: deadPlayers, disabledNums: disabled, selectedNums: guardProtectTarget && guardProtectTarget !== 0 ? [guardProtectTarget] : undefined, selectedClass: 'learn-target' }); return h; },
+      handleAction(act) { if (!gDead && act === 'no-guard') { guardProtectTarget = 0; render(currentStep); } },
+      handleSelect(num) { if (!gDead) { guardProtectTarget = num; lastGuardTarget = num; render(currentStep); } },
+    });
+
+    // 2. 狼人刀人
+    if (wa) {
+      s.push({ title: '狼人行动', subtitle: rl + ' - 刀人', desc: '请选择狼人今晚袭击的目标号码',
+        canProceed: () => killTarget !== null,
+        render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+        handleSelect(num) { killTarget = num; render(currentStep); },
+      });
+    }
+
+    // 3. 女巫行动
+    s.push({ title: '女巫行动', subtitle: rl + ' - 救人/毒人', desc: wDead ? '女巫已阵亡，无法行动' : '请记录女巫的行动',
+      canProceed() {
+        if (wDead) return true;
+        if (witchHasSave && killTarget && wNum !== killTarget && witchSaveAction === null) return false;
+        if (witchPoisonActive && witchPoisonTarget === null) return false;
+        return true;
+      },
+      render() {
+        if (wDead) return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">女巫已阵亡，无法行动</div></div>';
+        const wik = wNum === killTarget;
+        let h = '';
+        if (killTarget) {
+          h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">' + killTarget + ' 号 (' + getRoleDisplay(killTarget) + ')</div></div>';
+          if (wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+        } else {
+          h += '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">空刀</div></div>';
+        }
+        if (witchHasSave && killTarget && !wik) {
+          h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>';
+          h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>';
+        } else if (!witchHasSave) {
+          h += '<div class="action-card"><div class="card-label">解药已使用</div></div>';
+        }
+        if (witchHasPoison) {
+          h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+          h += '<div class="action-btn ' + (!witchPoisonActive && (witchSaveAction !== null || !witchHasSave || !killTarget || wik) ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">毒药已使用</div></div>';
+        }
+        if (witchPoisonActive) { h += renderGrid({ grayedNums: deadPlayers, disabledNums: [wNum], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' }); }
+        return h;
+      },
+      handleAction(act) { if (wDead) return; if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; } else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; } else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; } else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; } render(currentStep); },
+      handleSelect(num) { if (!wDead) { witchPoisonTarget = num; render(currentStep); } },
+    });
+
+    // 4. 预言家验人
+    pushLanternCheckStep(s, 'seer', false);
+
+    // 5. 灯影预言家验人
+    pushLanternCheckStep(s, 'lanternSeer', false);
+
+    // 6. 天亮
+    s.push({ title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+
+    // 7. 白天放逐
+    s.push({ title: '白天放逐', subtitle: '第' + round + '天 - 投票', desc: '请选择被放逐的玩家号码',
+      canProceed: () => banishedPlayer !== null,
+      render() { return renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined }); },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+
+    // 8. 狼王开枪（被放逐时）
+    pushLanternWolfKingShotStep(s);
+    return s;
+  }
+
   // ─── Navigation ─────────────────────────────────────────────
   function render(idx) {
     currentStep = idx;
@@ -3820,10 +4165,10 @@ header .subtitle {
     if (suicideBtn) {
       suicideBtn.style.display = isDayPhase ? 'block' : 'none';
     }
-    // Show knight duel button only for muteElder board during day phase
+    // Show knight duel button for boards with a knight during day phase
     const knightBtn = document.getElementById('knightDuelBtn');
     if (knightBtn) {
-      knightBtn.style.display = (boardType === 'muteElder' && isDayPhase) ? 'block' : 'none';
+      knightBtn.style.display = ((boardType === 'muteElder' || boardType === 'lanternSeer') && isDayPhase) ? 'block' : 'none';
     }
 
     const btnPrev = document.getElementById('btnPrev');
@@ -3849,6 +4194,7 @@ header .subtitle {
         mechExtraKill: mechExtraKill,
         armorExtraKill: armorExtraKill,
         seerCheck: seerCheckTarget,
+        lanternCheck: lanternCheckTarget,
         witchSave: witchSaveAction,
         witchPoison: witchPoisonTarget,
         guardProtect: guardProtectTarget,
@@ -3911,6 +4257,11 @@ header .subtitle {
     // 通灵师查验记录（不能重复查验同一名玩家）
     if (boardType === 'armor' && seerCheckTarget != null && mediumChecked.indexOf(seerCheckTarget) < 0) {
       mediumChecked.push(seerCheckTarget);
+    }
+    // 灯影预言家板子：记录两边已查验过的号码（之后不能重复查验）
+    if (boardType === 'lanternSeer') {
+      if (seerCheckTarget != null && seerChecked.indexOf(seerCheckTarget) < 0) seerChecked.push(seerCheckTarget);
+      if (lanternCheckTarget != null && lanternChecked.indexOf(lanternCheckTarget) < 0) lanternChecked.push(lanternCheckTarget);
     }
     // 追踪摄梦人连续梦游（被恐惧 / 死亡则中断，需重新累计）
     if (boardType === 'nightmare') {
@@ -4418,6 +4769,7 @@ header .subtitle {
     witchHasSave = true; witchHasPoison = true;
     mechNightAction = null; mechHasUsedPoison = false; mechActionSkipped = false; mechExtraKill = null; mechExtraKillUsed = false;
     knightDuelTarget = null;
+    seerChecked = []; lanternCheckTarget = null; lanternChecked = []; knightConfirmedGood = []; knightDuelUsed = false;
     dreamTarget = null;
     lastDreamTarget = null;
     dreamNoSkillDead = [];
@@ -4464,6 +4816,7 @@ header .subtitle {
       }
       if (entry.night.armorExtraKill) acts.push('装甲狼刀 <span class="act">' + entry.night.armorExtraKill + '号</span>');
       if (entry.night.seerCheck) acts.push((boardType === 'armor' ? '通灵师验 ' : '预言家验 ') + '<span class="act">' + entry.night.seerCheck + '号</span>');
+      if (entry.night.lanternCheck) acts.push('灯影预言家验 <span class="act">' + entry.night.lanternCheck + '号</span>');
       if (entry.night.witchSave === 'save') acts.push('女巫救 <span class="act">' + entry.night.wolfKill + '号</span>');
       else if (entry.night.witchSave === 'no-save' && entry.night.wolfKill) acts.push('女巫不救');
       if (entry.night.witchPoison) acts.push('女巫毒 <span class="act">' + entry.night.witchPoison + '号</span>');
@@ -4524,6 +4877,7 @@ header .subtitle {
     const wolves = getAssignedAll('wolf');
     const mech   = getAssigned('mech');
     const armor  = getAssigned('armor');
+    const knight = getAssigned('knight');
     const wolfKing = getAssigned('wolfKing');
     const whiteWolfKing = getAssigned('whiteWolfKing');
     const dreamweaver = getAssigned('dreamweaver');
@@ -4536,6 +4890,8 @@ header .subtitle {
       ? seer && witch && hunter && dreamweaver && wolves.length === 3 && nightmare
       : boardType === 'armor'
       ? medium && witch && hunter && guard && wolves.length === 2 && mech && armor
+      : boardType === 'lanternSeer'
+      ? seer && witch && guard && knight && getAssigned('lanternSeer') && wolves.length === 3 && wolfKing
       : seer && witch && hunter && guard && wolves.length === 3 && mech;
     const villagers = getAssignedAll('villager');
 
@@ -4548,6 +4904,10 @@ header .subtitle {
     if (boardType === 'armor') {
       html += '<div class="result-summary-item"><span class="label">机械狼学习</span><span class="value">' + (learnTarget ? learnTarget + ' 号 (' + getRoleDisplay(learnTarget) + ')' : '?') + '</span></div>';
       html += '<div class="result-summary-item"><span class="label">装甲狼学习</span><span class="value">' + (armorLearnTarget ? armorLearnTarget + ' 号 (' + getRoleDisplay(armorLearnTarget) + ')' + (assignments[armorLearnTarget] === 'mech' ? ' → 机械装甲狼' : '') : '?') + '</span></div>';
+    }
+    if (boardType === 'lanternSeer') {
+      const lnSeat = getAssigned('lanternSeer');
+      html += '<div class="result-summary-item"><span class="label">灯影预言家</span><span class="value">' + (lnSeat != null ? lnSeat + ' 号（民坑，查验结果与实际相反）' : '?') + '</span></div>';
     }
     html += '<div class="result-summary-item"><span class="label">当前轮次</span><span class="value">第 ' + round + ' 轮</span></div>';
     html += '<div class="result-summary-item"><span class="label">出局玩家</span><span class="value">' + (deadPlayers.length ? deadPlayers.sort((a,b)=>a-b).join(', ') : '无') + ' 号</span></div>';
@@ -4637,6 +4997,10 @@ header .subtitle {
       html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到狼人</span><span class="rule-score negative">-1</span></div>';
     }
     html += '<div class="rule-item"><span class="rule-desc">' + (boardType === 'armor' ? '通灵师验到狼人' : '预言家验到狼人') + '</span><span class="rule-score">+1</span></div>';
+    if (boardType === 'lanternSeer') {
+      html += '<div class="rule-item"><span class="rule-desc">灯影预言家验到「狼人」</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">灯影预言家查验结果与实际阵营相反，此处按告知他的结果计分</div>';
+    }
     html += '<div class="rule-item"><span class="rule-desc">女巫救起好人</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫不救自刀狼人</span><span class="rule-score">+2</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">女巫毒到狼人</span><span class="rule-score">+2</span></div>';
@@ -4651,10 +5015,10 @@ header .subtitle {
     html += '<div class="rule-sub" style="padding:0 0 6px">每名存活狼人各获得</div>';
     html += '<div class="rule-item"><span class="rule-desc">' + (boardType === 'armor' ? '通灵师当选警长（首轮）' : '预言家当选警长（首轮）') + '</span><span class="rule-score">+1</span></div>';
     html += '<div class="rule-item"><span class="rule-desc">猎人开枪带走狼人</span><span class="rule-score">+4</span></div>';
-    if (boardType === 'muteElder') {
+    if (boardType === 'muteElder' || boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">骑士决斗杀死狼人</span><span class="rule-score">+4</span></div>';
     }
-    if (boardType === 'wolfking') {
+    if (boardType === 'wolfking' || boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">狼王开枪带走神职</span><span class="rule-score">+2</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">狼王开枪带走平民</span><span class="rule-score">+1</span></div>';
     }
@@ -4951,11 +5315,13 @@ header .subtitle {
     document.getElementById('wolfSuicideOverlay').classList.remove('open');
   });
 
-  // Knight duel button handler (muteElder board, day phase only)
+  // Knight duel button handler (muteElder / lanternSeer boards, day phase only)
   document.getElementById('knightDuelBtn').addEventListener('click', function() {
-    if (boardType !== 'muteElder' || !isDayPhase) return;
+    if (boardType !== 'muteElder' && boardType !== 'lanternSeer') return;
+    if (!isDayPhase) return;
     const kn = getAssigned('knight');
     if (!kn || isDead(kn)) { alert('骑士已阵亡，无法决斗'); return; }
+    if (knightDuelUsed) { alert('骑士本局已翻牌决斗过（每人只有一次机会）'); return; }
     // Build grid of all alive players except the knight
     let html = '';
     for (let i = 1; i <= TOTAL; i++) {
@@ -4979,12 +5345,15 @@ header .subtitle {
     document.getElementById('knightDuelOverlay').classList.remove('open');
     const kn = getAssigned('knight');
     knightDuelTarget = num;
+    knightDuelUsed = true;
     if (isWolfFactionNum(num)) {
       addDeath(num);
       scoreDayActions();
       // Duel succeeded: skip banishment, go straight to night
       advanceAfterDay();
     } else {
+      // 断剑：骑士出局；被决斗者是好人，之后不能再被查验
+      if (knightConfirmedGood.indexOf(num) < 0) knightConfirmedGood.push(num);
       addDeath(kn);
       scoreDayActions();
       render(currentStep); // refresh current view, day continues
