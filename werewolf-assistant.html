@@ -6,7 +6,8 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="x5-orientation" content="portrait">
 <title>狼人杀</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<!-- 本地内置 html2canvas，离线/弱网也能生成图片；缺失时脚本里会回退到 CDN -->
+<script src="html2canvas.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -972,7 +973,7 @@ header .subtitle {
     hunter:  '被狼人刀死或被放逐出局时，可开枪带走一名玩家；被女巫毒死时不能开枪。',
     guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
     knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
-    lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。必须参与警长竞选；不能与预言家重复查验同一目标，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。注：两张预言家牌每晚的叫牌顺序由本助手随机决定，法官请按提示的「叫牌顺位」喊人，避免固定顺序被玩家摸出规律。',
+    lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。查验池与自己独立：不能重复查验自己验过的人，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人（两张牌互不知道对方，彼此验过谁互不影响）。必须参与警长竞选。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。注：两张预言家牌每晚的叫牌顺序由本助手随机决定，法官请按提示的「叫牌顺位」喊人，避免固定顺序被玩家摸出规律。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
@@ -1309,17 +1310,15 @@ header .subtitle {
   }
   // ── 灯影预言家板子：查验约束 ────────────────────────────────
   // who: 'seer' | 'lanternSeer'
-  // 不能查验自己、已翻牌的骑士、被骑士决斗证明的好人，且两人不能重复查验同一目标
+  // 两人互不知道对方身份，各自独立选人，所以查验池完全分开：
+  // 只排除「自己查过的目标」+ 自己 + 已翻牌骑士 + 被骑士证明的好人
   function lanternCheckBlocked(who, currentTarget) {
     const d = [];
     const push = (n) => { if (n != null && d.indexOf(n) < 0) d.push(n); };
     push(getAssigned(who));
     if (knightDuelTarget != null) push(getAssigned('knight'));
     knightConfirmedGood.forEach(push);
-    seerChecked.forEach(push);
-    lanternChecked.forEach(push);
-    push(seerCheckTarget);
-    push(lanternCheckTarget);
+    (who === 'lanternSeer' ? lanternChecked : seerChecked).forEach(push);
     return d.filter(n => n !== currentTarget);
   }
   function nightmareBlocksKill() {
@@ -3852,8 +3851,8 @@ header .subtitle {
   //   规则来源：https://mp.weixin.qq.com/s/YYVSFv-sFBHfpmeGLSo9EA
   //   · 灯影预言家属于平民阵营（占民坑），自己并不知道自己是灯影预言家
   //   · 其每夜查验结果与实际阵营相反（验到狼人显示「好人」，验到好人显示「狼人」）
-  //   · 预言家与灯影预言家不能重复查验同一目标，不能查验自己、
-  //     已翻牌的骑士，以及被骑士决斗证明的好人
+  //   · 两人互不知道对方，查验池互相独立：各自不能重复查验自己验过的人，
+  //     不能查验自己、已翻牌的骑士，以及被骑士决斗证明的好人
   //   · 两人都必须参与警长竞选
   //   · 屠民需灯影预言家出局；骑士对其发起决斗则骑士断剑出局
   //   · 两张预言家牌每晚的叫牌/查验顺序随机，防止法官固定先叫某一张被玩家摸出规律
@@ -3882,8 +3881,8 @@ header .subtitle {
       desc() {
         if (selfDead()) return label + '已阵亡，无法查验';
         return isLantern
-          ? '请选择灯影预言家查验的目标（不可与预言家重复同一目标）。注意：灯影预言家不知道自己是灯影预言家，查验结果与实际阵营相反'
-          : '请选择预言家查验的目标（不可重复查验：含已翻牌的骑士、被骑士证明的好人）';
+          ? '请选择灯影预言家查验的目标（只排除他自己查过的人）。注意：灯影预言家不知道自己是灯影预言家，查验结果与实际阵营相反'
+          : '请选择预言家查验的目标（只排除他自己查过的人；不能验自己 / 已翻牌骑士 / 被骑士证明的好人）';
       },
       canProceed: () => selfDead() || (isLantern ? lanternCheckTarget : seerCheckTarget) != null,
       render() {
@@ -3911,13 +3910,8 @@ header .subtitle {
       },
       handleSelect(num) {
         if (selfDead()) return;
-        if (isLantern) {
-          if (num === seerCheckTarget) return;          // 不能与预言家重复
-          lanternCheckTarget = num;
-        } else {
-          if (num === lanternCheckTarget) lanternCheckTarget = null; // 避免与灯影撞车
-          seerCheckTarget = num;
-        }
+        if (isLantern) lanternCheckTarget = num;
+        else seerCheckTarget = num;
         render(currentStep);
       },
     });
@@ -4741,30 +4735,79 @@ header .subtitle {
     if (e.target === this) this.classList.remove('open');
   });
 
+  // 图片库保底加载：本地 html2canvas.min.js 缺失时回退到 CDN
+  var h2cFallback = null;
+  function ensureHtml2canvas() {
+    if (typeof html2canvas !== 'undefined') return Promise.resolve(true);
+    if (h2cFallback) return h2cFallback;
+    h2cFallback = new Promise(function(resolve) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = function() { resolve(typeof html2canvas !== 'undefined'); };
+      s.onerror = function() { resolve(false); };
+      (document.head || document.body).appendChild(s);
+    });
+    return h2cFallback;
+  }
+
+  function isMobileUA() {
+    var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    return /Android|iPhone|iPad|iPod|MicroMessenger|HarmonyOS|Mobile/i.test(ua);
+  }
+
+  // 手机 / 微信里 a.download 基本无效，改为可在页面里长按保存的预览
+  function showSummaryImage(url, fileName) {
+    if (!isMobileUA()) {
+      var link = document.createElement('a');
+      link.download = fileName;
+      link.href = url;
+      link.click();
+      return;
+    }
+    var box = document.getElementById('summaryImgOverlay');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'summaryImgOverlay';
+      box.className = 'suicide-overlay';
+      box.innerHTML = '<div class="suicide-modal" style="max-width:92%;width:92%">'
+        + '<div class="suicide-modal-header" style="color:#d4a853">长按图片保存到相册</div>'
+        + '<img id="summaryImg" style="width:100%;border-radius:10px;display:block" alt="结算图片">'
+        + '<button class="suicide-cancel-btn" id="summaryImgClose">关闭</button>'
+        + '</div>';
+      document.body.appendChild(box);
+      box.addEventListener('click', function(e) {
+        if (e.target === box || e.target.id === 'summaryImgClose') box.classList.remove('open');
+      });
+    }
+    document.getElementById('summaryImg').src = url;
+    box.classList.add('open');
+  }
+
   function generateSummaryImage() {
     var btn = document.getElementById('generateImgBtn');
     var target = document.getElementById('contentArea').querySelector('.result-section');
-    if (!target || typeof html2canvas === 'undefined') { btn.textContent = '生成失败'; return; }
+    if (!target) { btn.textContent = '生成失败'; return; }
     btn.textContent = '生成中...';
     btn.disabled = true;
-    html2canvas(target, {
-      backgroundColor: '#1a1a2e',
-      scale: 2,
-      useCORS: true,
-      logging: false,
+    var now = new Date();
+    var timeStr = ('0' + now.getHours()).slice(-2) + '-' + ('0' + now.getMinutes()).slice(-2);
+    var fileName = boardDisplayName(boardType) + '_' + timeStr + '.png';
+    var baseOpts = { backgroundColor: '#1a1a2e', useCORS: true, logging: false };
+    function shot(scale) {
+      return html2canvas(target, Object.assign({ scale: scale }, baseOpts));
+    }
+    ensureHtml2canvas().then(function(loaded) {
+      if (!loaded) throw new Error('图片库未能加载，请联网后重试');
+      // 超长结算页在部分手机上会超出画布上限，降级为 1 倍再试一次
+      return shot(2).catch(function() { return shot(1); });
     }).then(function(canvas) {
-      var link = document.createElement('a');
-      var boardName = boardDisplayName(boardType);
-      var now = new Date();
-      var timeStr = ('0' + now.getHours()).slice(-2) + '-' + ('0' + now.getMinutes()).slice(-2);
-      link.download = boardName + '_' + timeStr + '.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      showSummaryImage(canvas.toDataURL('image/png'), fileName);
       btn.textContent = '生成总结图片';
       btn.disabled = false;
-    }).catch(function() {
-      btn.textContent = '生成失败';
+    }).catch(function(err) {
+      btn.textContent = '生成总结图片';
       btn.disabled = false;
+      alert('生成图片失败：' + ((err && (err.message || err)) || '未知错误'));
     });
   }
 
