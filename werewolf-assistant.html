@@ -5883,11 +5883,11 @@ header .subtitle {
   function colToLetter(c) { return String.fromCharCode(65 + c); }
 
   // ── 本局「出局 / 被学」事件（写入腾讯文档的记录用）──────────
-  //  返回 { 座位号: { knifedWhileGuarded, knifed, poisonedWhileGuarded, poisoned, shot, votedOut, learned } }
-  //  · knifedWhileGuarded（守夜被刀）= 被狼刀、且当晚被守卫守护（守卫守到狼刀）
-  //    knifed（被刀）             = 被狼刀、但当晚没被守护（与上面互斥，不再重复记录）
-  //  · poisonedWhileGuarded（守夜被毒）= 被女巫毒、且当晚被守卫守护
-  //    poisoned（被毒）             = 被女巫毒、但当晚没被守护（与上面互斥）
+  //  返回 { 座位号: { firstNightKnifed, knifed, firstNightPoisoned, poisoned, shot, votedOut, learned } }
+  //  · firstNightKnifed（守夜被刀）= 第一晚被狼刀（仅首夜；第二晚起被刀不算）
+  //    knifed（被刀）             = 被狼刀（任何一晚，含守夜被刀）
+  //  · firstNightPoisoned（守夜被毒）= 第一晚被女巫毒
+  //    poisoned（被毒）             = 被女巫毒（任何一晚，含守夜被毒）
   //  · shot（被开枪带走）= 猎人 / 狼王 / 白狼王 / 机械狼·装甲狼（学猎人）开枪，含连锁开枪
   //  · votedOut（被投出去）= 白天公投放逐出局（愚者翻牌免于放逐不计）
   //  · learned（被学）= 首夜被机械狼 / 装甲狼学习（仅机械狼板子、装甲狼板子）
@@ -5895,7 +5895,7 @@ header .subtitle {
   function computeTdEvents() {
     var ev = {};
     function rec(n) {
-      if (!ev[n]) ev[n] = { knifedWhileGuarded: false, knifed: false, poisonedWhileGuarded: false, poisoned: false, shot: false, votedOut: false, learned: false };
+      if (!ev[n]) ev[n] = { firstNightKnifed: false, knifed: false, firstNightPoisoned: false, poisoned: false, shot: false, votedOut: false, learned: false };
       return ev[n];
     }
     function seat(v) { return (typeof v === 'number' && v > 0) ? v : null; }
@@ -5903,11 +5903,17 @@ header .subtitle {
       var entry = gameLog[gi] || {};
       var n = entry.night || {};
       var d = entry.day || {};
-      var guard = seat(n.guardProtect);
+      var firstNight = (entry.round === 1);
       var kill = seat(n.wolfKill);
-      if (kill) { if (guard && guard === kill) rec(kill).knifedWhileGuarded = true; else rec(kill).knifed = true; }
+      if (kill) {
+        rec(kill).knifed = true;
+        if (firstNight) rec(kill).firstNightKnifed = true;
+      }
       var poison = seat(n.witchPoison);
-      if (poison) { if (guard && guard === poison) rec(poison).poisonedWhileGuarded = true; else rec(poison).poisoned = true; }
+      if (poison) {
+        rec(poison).poisoned = true;
+        if (firstNight) rec(poison).firstNightPoisoned = true;
+      }
       if (seat(n.mechLearn)) rec(seat(n.mechLearn)).learned = true;
       if (seat(n.armorLearn)) rec(seat(n.armorLearn)).learned = true;
       var shots = [d.hunterShot, d.hunterRevenge, d.mechChainShot, d.mechHunterRevenge,
@@ -5921,10 +5927,10 @@ header .subtitle {
   // 机械狼 / 装甲狼板子额外记录 learned（被学）
   function tdEventFields() {
     var fields = [
-      ['knifedWhileGuarded', '守夜被刀'],
-      ['knifed', '被刀（已剔除守夜被刀）'],
-      ['poisonedWhileGuarded', '守夜被毒'],
-      ['poisoned', '被毒（已剔除守夜被毒）'],
+      ['firstNightKnifed', '守夜被刀（第一晚被刀）'],
+      ['knifed', '被刀（任何一晚，含守夜被刀）'],
+      ['firstNightPoisoned', '守夜被毒（第一晚被毒）'],
+      ['poisoned', '被毒（任何一晚，含守夜被毒）'],
       ['shot', '被开枪带走'],
       ['votedOut', '被投出去']
     ];
@@ -5962,9 +5968,12 @@ header .subtitle {
     sw[d.resultRow] = d.resultText;
 
     // ── Build operation detail JSON for each player ──────────────
-    //   与 operationLine 同级新增：守夜被刀 / 被刀 / 守夜被毒 / 被毒 /
-    //   被开枪带走 / 被投出去（机械狼、装甲狼板子再加「被学」）
-    //   每个 key 的值 = 发生该事件的人名，未发生则为空字符串
+    //   与 operationLine 同级新增：name 以及
+    //   firstNightKnifed（守夜被刀）/ knifed（被刀）/
+    //   firstNightPoisoned（守夜被毒）/ poisoned（被毒）/
+    //   shot（被开枪带走）/ votedOut（被投出去）
+    //   （机械狼、装甲狼板子再加 learned 被学）
+    //   状态字段一律 true / false；守夜被刀/毒只看第一晚，被刀/被毒含首夜
     var opData = {};
     var mvps = computeMvps();
     var evAll = computeTdEvents();
