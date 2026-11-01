@@ -869,6 +869,7 @@ header .subtitle {
         <div class="action-btn" data-board="muteElder" style="display:block;padding:20px;font-size:18px">禁言长老板子</div>
         <div class="action-btn" data-board="nightmare" style="display:block;padding:20px;font-size:18px">梦魇板子</div>
         <div class="action-btn" data-board="lanternSeer" style="display:block;padding:20px;font-size:18px">灯影预言家板子</div>
+        <div class="action-btn" data-board="masquerade" style="display:block;padding:20px;font-size:18px">假面舞会板子</div>
       </div>
     </div>
   </div>
@@ -883,7 +884,7 @@ header .subtitle {
 <script>
 (function() {
   // ─── Constants / Board config ────────────────────────────────
-  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare' | 'lanternSeer'
+  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare' | 'lanternSeer' | 'masquerade'
 
   let ROLES = {};
   function initRoles(board) {
@@ -938,6 +939,15 @@ header .subtitle {
       wolf:   { label: '小狼',   type: 'wolf', count: 3 },
       wolfKing: { label: '狼王', type: 'wolf', count: 1 },
       villager: { label: '平民', type: 'good', count: 3 },
+    } : board === 'masquerade' ? {
+      // 12人假面舞会：假面 + 三普狼 / 舞者、预言家、女巫、愚者 / 四平民
+      dancer: { label: '舞者',   type: 'god',  count: 1 },
+      seer:   { label: '预言家', type: 'god',  count: 1 },
+      witch:  { label: '女巫',   type: 'god',  count: 1 },
+      idiot:  { label: '愚者',   type: 'god',  count: 1 },
+      mask:   { label: '假面',   type: 'wolf', count: 1 },
+      wolf:   { label: '小狼',   type: 'wolf', count: 3 },
+      villager: { label: '平民', type: 'good', count: 4 },
     } : {
       seer:   { label: '预言家', type: 'god',  count: 1 },
       witch:  { label: '女巫',   type: 'god',  count: 1 },
@@ -957,6 +967,7 @@ header .subtitle {
       : board === 'muteElder' ? '禁言长老'
       : board === 'nightmare' ? '梦魇'
       : board === 'lanternSeer' ? '灯影预言家'
+      : board === 'masquerade' ? '假面舞会'
       : '机械狼';
   }
   const TYPE_STYLES = {
@@ -974,6 +985,9 @@ header .subtitle {
     guard:   '每晚可守护一名玩家，使其免受狼刀；不能连续两晚守护同一人。',
     knight:  '白天可对一名玩家发起决斗：若对方是狼人，则对方出局；否则骑士自己出局。',
     lanternSeer: '平民阵营（占民坑）。每晚可查验一名玩家的阵营，但自己并不知道自己是灯影预言家，且查验结果为真实阵营的相反结果：验到狼人会显示「好人」，验到好人会显示「狼人」。查验池与自己独立：不能重复查验自己验过的人，不能查验自己、已翻牌的骑士及被骑士决斗出来的好人（两张牌互不知道对方，彼此验过谁互不影响）。必须参与警长竞选。狼人屠民时必须使其出局才算屠民成功；骑士对其发起决斗则骑士断剑出局。注：两张预言家牌每晚的叫牌顺序由本助手随机决定，法官请按提示的「叫牌顺位」喊人，避免固定顺序被玩家摸出规律。',
+    dancer:  '神职。第二晚起每晚必须框定三名存活玩家共舞（可含自己）：三人同一阵营则无事发生；阵营不同则由人数最少的一方在白天宣布出局。舞者在舞池中时，当晚舞池内的玩家免疫狼刀伤害（舞池阵营人数规则照常结算）。每名玩家一局仅能进入舞池一次；可进入舞池的玩家不足三人时起舞失效。舞者免疫女巫毒药。',
+    mask:    '狼人阵营，与普狼互不见面，所有普狼出局后由假面带刀。每晚在舞者之后行动：可向法官询问一名玩家是否进入舞池（不可连续两晚询问同一人），并可发动面具——逆转该玩家在舞池中的阵营，从而改变舞池人数结算；若该玩家不在舞池则无事发生。不可连续两晚给同一人戴面具，面具可以给自己使用。假面免疫女巫毒药。',
+    idiot:   '神职（俗称白痴）。白天被公投出局时翻牌，免除本次放逐并留场继续发言，但失去投票权，之后不能再被放逐。本版型中若愚者已翻牌留场，狼人必须追刀使其出局才算屠神成功。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
@@ -1051,6 +1065,14 @@ header .subtitle {
   let knightDuelUsed = false;     // 骑士本局是否已用过决斗（一局仅一次）
   // 两张预言家牌（真预言家 / 灯影预言家）每晚的叫牌顺序：null = 还没抽，抽定后本夜固定
   let lanternBoardCheckOrder = null;
+  // ── 假面舞会板子 (masquerade board) ───────────────────────────
+  let dancePool = [];              // 今晚舞池（三名玩家）
+  let danceMaskTarget = null;      // 假面今晚戴面具的目标（0 = 不使用）
+  let danceQueryTarget = null;     // 假面今晚查询舞池的玩家（0 = 不查询）
+  let danceHistory = [];           // 本局已进入过舞池的玩家（每人仅能进一次）
+  let lastDanceMaskTarget = null;  // 上一晚戴面具的目标（不可连续两晚同一人）
+  let lastDanceQueryTarget = null; // 上一晚查询的目标（不可连续两晚同一人）
+  let idiotFlipped = false;        // 愚者是否已翻牌（本局永久）
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
   let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
   let dreamNoSkillDead = [];     // 因梦游出局/跟随摄梦人出局而无技能的玩家（本回合）
@@ -1271,11 +1293,14 @@ header .subtitle {
     const wwkAlive = wwkN != null && !isDead(wwkN);
     const nmN = getAssigned('nightmare');
     const nmAlive = nmN != null && !isDead(nmN);
-    if (aliveWolves === 0 && !mechAlive && !armorAlive && !wkAlive && !wwkAlive && !nmAlive) return 'good';
+    const maskN = getAssigned('mask');
+    const maskAlive = maskN != null && !isDead(maskN);
+    if (aliveWolves === 0 && !mechAlive && !armorAlive && !wkAlive && !wwkAlive && !nmAlive && !maskAlive) return 'good';
     const gods = boardType === 'muteElder' ? ['seer','witch','knight','muteElder']
       : boardType === 'nightmare' ? ['seer','witch','hunter','dreamweaver']
       : boardType === 'armor' ? ['medium','witch','hunter','guard']
       : boardType === 'lanternSeer' ? ['seer','witch','guard','knight']
+      : boardType === 'masquerade' ? ['dancer','seer','witch','idiot']
       : ['seer','witch','hunter','guard'];
     const deadGods = gods.filter(rk => {
       const n = getAssigned(rk);
@@ -1294,12 +1319,12 @@ header .subtitle {
   function isWolfFactionNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'wolf' || rk === 'mech' || rk === 'armor' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare';
+    return rk === 'wolf' || rk === 'mech' || rk === 'armor' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare' || rk === 'mask';
   }
   function isGodNum(num) {
     if (num == null) return false;
     const rk = assignments[num];
-    return rk === 'seer' || rk === 'medium' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver';
+    return rk === 'seer' || rk === 'medium' || rk === 'witch' || rk === 'hunter' || rk === 'guard' || rk === 'knight' || rk === 'muteElder' || rk === 'dreamweaver' || rk === 'dancer' || rk === 'idiot';
   }
   // 是否「民坑」成员（灯影预言家属于平民阵营，占民坑）
   function isPeasantNum(num) {
@@ -1325,6 +1350,79 @@ header .subtitle {
     if (boardType !== 'nightmare') return false;
     if (nightmareFearTarget == null) return false;
     return isWolfFactionNum(nightmareFearTarget) && !isDead(nightmareFearTarget);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  假面舞会板子（12人）辅助逻辑
+  //   舞者：第二晚起必须框三名玩家共舞；三人同阵营无事，不同阵营则人数
+  //         最少的一方在白天宣布出局；舞者在舞池中时舞池内玩家免疫狼刀；
+  //         每名玩家一局仅能进入舞池一次；舞者免疫女巫毒药
+  //   假面：与普狼不见面，普狼全出局后带刀；每晚在舞者之后可查询一名玩家
+  //         是否进入舞池（不可连续两晚查同一人），并可发动面具逆转该玩家
+  //         在舞池中的阵营（不可连续两晚给同一人戴面具，可对自己使用）；
+  //         目标不在舞池则无事发生；假面免疫女巫毒药
+  //   愚者：被放逐时翻牌免于出局（留场但无投票权），狼人需追刀
+  // ══════════════════════════════════════════════════════════════
+  function masqueradeFillVillagers() {
+    for (let i = 1; i <= TOTAL; i++) { if (!assignments[i]) assignments[i] = 'villager'; }
+  }
+  function dancerNum() { return getAssigned('dancer'); }
+  function dancerInPool() {
+    if (boardType !== 'masquerade') return false;
+    const dn = dancerNum();
+    return dn != null && dancePool.indexOf(dn) >= 0;
+  }
+  // 舞池免刀：舞者在舞池中时，当晚舞池内玩家免疫狼刀伤害
+  function dancePoolImmune(num) {
+    if (boardType !== 'masquerade' || num == null) return false;
+    if (!dancerInPool()) return false;
+    return dancePool.indexOf(num) >= 0;
+  }
+  // 舞者 / 假面免疫女巫毒药
+  function masqueradePoisonImmune(num) {
+    if (boardType !== 'masquerade' || num == null) return false;
+    return num === dancerNum() || num === getAssigned('mask');
+  }
+  // 可进入舞池的玩家：存活且本局还没进过舞池
+  function dancePoolEligible() {
+    return getAliveNums().filter(n => danceHistory.indexOf(n) < 0);
+  }
+  function currentDanceMask() {
+    return (danceMaskTarget && danceMaskTarget !== 0) ? danceMaskTarget : null;
+  }
+  // 舞池阵营结算：flip = 被面具逆转的号码（null = 无面具）
+  // 返回「人数最少的一方」= 在白天宣布出局的玩家
+  function dancePoolOut(flip) {
+    const pool = dancePool.filter(n => n != null);
+    if (pool.length < 3) return [];
+    const wolves = pool.filter(n => {
+      const w = isWolfFactionNum(n);
+      return (flip != null && n === flip) ? !w : w;
+    });
+    const goods = pool.filter(n => wolves.indexOf(n) < 0);
+    if (wolves.length === 0 || goods.length === 0) return [];
+    return wolves.length < goods.length ? wolves.slice() : goods.slice();
+  }
+  function dancePoolActualOut() {
+    return dancePoolOut(currentDanceMask());
+  }
+  // 面具生效后的阵营文本
+  function danceCampText(num, flip) {
+    const w = isWolfFactionNum(num);
+    const eff = (flip != null && num === flip) ? !w : w;
+    return eff ? '狼人' : '好人';
+  }
+  // 假面执刀：普狼全部出局后带刀
+  function maskCarriesKnife() {
+    return boardType === 'masquerade'
+      && aliveNormalWolves().length === 0
+      && roleAlive('mask');
+  }
+  // 愚者翻牌：白天被放逐时免除放逐（之后不能被再次放逐，需狼人追刀）
+  function idiotFlipActive() {
+    return boardType === 'masquerade'
+      && banishedPlayer != null
+      && assignments[banishedPlayer] === 'idiot';
   }
   function awardScore(num, points, reason) {
     if (num == null) return;
@@ -1409,6 +1507,35 @@ header .subtitle {
         else awardScore(getAssigned('seer'), 1, '验到狼人');
       }
     }
+    // ── 假面舞会板子：假面执刀 / 舞者起舞 / 面具改判 ──
+    if (boardType === 'masquerade') {
+      const maskSeat = getAssigned('mask');
+      // 普狼全部出局后由假面执刀，刀人出局同样计分
+      if (killTarget && isDead(killTarget) && maskSeat != null && !isDead(maskSeat) && aliveWolves.length === 0) {
+        awardScore(maskSeat, 1, '假面带刀刀人出局');
+      }
+      // 舞者：按舞池实际结算计分（舞死狼人 +4 / 误伤好人 -2）
+      const dn = getAssigned('dancer');
+      const actOut = dancePoolActualOut();
+      if (dn != null) {
+        if (actOut.some(n => isWolfFactionNum(n))) awardScore(dn, 4, '舞池舞死狼人');
+        if (actOut.some(n => !isWolfFactionNum(n))) awardScore(dn, -2, '舞池误伤好人');
+        if (killTarget && dancePoolImmune(killTarget)) awardScore(dn, 2, '舞者在舞池挡住狼刀');
+      }
+      // 假面：按面具对舞池结算造成的「净改变」计分
+      //   每多死一名好人 / 每救下一名狼人 → +2
+      //   每救下一名好人 / 每多死一名狼人 → -2
+      if (maskSeat != null && currentDanceMask() != null && dancePool.length >= 3) {
+        const baseOut = dancePoolOut(null);
+        const isG = (n) => !isWolfFactionNum(n);
+        const delta = 2 * (actOut.filter(n => isG(n) && baseOut.indexOf(n) < 0).length
+                        + baseOut.filter(n => !isG(n) && actOut.indexOf(n) < 0).length)
+                    - 2 * (baseOut.filter(n => isG(n) && actOut.indexOf(n) < 0).length
+                        + actOut.filter(n => !isG(n) && baseOut.indexOf(n) < 0).length);
+        if (delta > 0) awardScore(maskSeat, delta, '面具改判致好人出局/救下狼人');
+        else if (delta < 0) awardScore(maskSeat, delta, '面具改判救下好人/误伤狼人');
+      }
+    }
     // 灯影预言家：其验人结果与实际阵营相反，验到好人时会显示为「狼人」
     if (boardType === 'lanternSeer' && lanternCheckTarget != null) {
       const ln = getAssigned('lanternSeer');
@@ -1427,7 +1554,7 @@ header .subtitle {
     if (witchPoisonTarget != null && witchHasPoison && wn != null) {
       const mechShield = ROLES.mech && mechNightAction && mechNightAction.type === 'shield' ? mechNightAction.target : null;
       const armorShield = armorShieldTarget();
-      if (witchPoisonTarget !== mechShield && witchPoisonTarget !== armorShield && isWolfFactionNum(witchPoisonTarget)) {
+      if (witchPoisonTarget !== mechShield && witchPoisonTarget !== armorShield && !masqueradePoisonImmune(witchPoisonTarget) && isWolfFactionNum(witchPoisonTarget)) {
         awardScore(wn, 2, '毒到狼人');
       }
     }
@@ -1449,11 +1576,12 @@ header .subtitle {
     // Sheriff scoring (round 1 only)
     if (round === 1 && sheriff && sheriff !== 'none') {
       const sr = assignments[sheriff];
-      if (sr === 'wolf' || sr === 'mech' || sr === 'armor' || sr === 'wolfKing') {
+      if (sr === 'wolf' || sr === 'mech' || sr === 'armor' || sr === 'wolfKing' || sr === 'mask') {
         getAssignedAll('wolf').filter(n => !isDead(n)).forEach(n => awardScore(n, 1, '狼人获得警长'));
         const m = getAssigned('mech'); if (m != null && !isDead(m)) awardScore(m, 1, '狼人获得警长');
         const ar = getAssigned('armor'); if (ar != null && !isDead(ar)) awardScore(ar, 1, '狼人获得警长');
         const wk = getAssigned('wolfKing'); if (wk != null && !isDead(wk)) awardScore(wk, 1, '狼人获得警长');
+        const mk = getAssigned('mask'); if (mk != null && !isDead(mk)) awardScore(mk, 1, '狼人获得警长');
       }
       if (sr === 'seer') awardScore(sheriff, 1, '预言家当选警长');
       if (sr === 'medium') awardScore(sheriff, 1, '通灵师当选警长');
@@ -1518,6 +1646,10 @@ header .subtitle {
         awardScore(kn, 4, '决斗杀死狼人');
       }
     }
+    // 假面舞会：愚者翻牌免除本次放逐
+    if (boardType === 'masquerade' && idiotFlipActive()) {
+      awardScore(banishedPlayer, 1, '愚者翻牌免于放逐');
+    }
   }
   function scoreGameEnd() {
     if (gameEndScored) return;
@@ -1560,6 +1692,9 @@ header .subtitle {
     dreamNoSkillDead = [];
     lanternCheckTarget = null;
     lanternBoardCheckOrder = null;   // 每夜重新随机叫牌顺序
+    dancePool = [];
+    danceMaskTarget = null;
+    danceQueryTarget = null;
     wolfSuicide = null;
     isDayPhase = false;
   }
@@ -1594,8 +1729,9 @@ header .subtitle {
       const isSaved = witchSaveAction === 'save';
       const isDreamImmune = dreamerImmune && killTarget === dreamer;
       // 噩梦之影恐惧狼人 → 狼队无法袭击；梦游者免疫夜伤 → 不结算狼刀
-      if (fearBlocksKill || isDreamImmune) {
-        // 空刀 / 梦游者免死
+      // 假面舞会：舞者在舞池中时，舞池内玩家免疫狼刀
+      if (fearBlocksKill || isDreamImmune || dancePoolImmune(killTarget)) {
+        // 空刀 / 梦游者免死 / 舞池免刀
       }
       // 同守同救: guard AND witch on same target -> still dies (unless mech guard shields)
       else if (isGuarded && isSaved && !isShielded(killTarget)) { addDeath(killTarget); }
@@ -1604,7 +1740,9 @@ header .subtitle {
     if (mechExtraKill) { if (!secondKnifeBlocked(mechExtraKill)) addDeath(mechExtraKill); }
     if (armorExtraKill) { if (!secondKnifeBlocked(armorExtraKill)) addDeath(armorExtraKill); }
     if (witchPoisonTarget && witchHasPoison) {
-      if (dreamerImmune && witchPoisonTarget === dreamer) {
+      if (masqueradePoisonImmune(witchPoisonTarget)) {
+        // 假面舞会：舞者 / 假面 免疫女巫毒药，毒药照常消耗但无人出局
+      } else if (dreamerImmune && witchPoisonTarget === dreamer) {
         // 梦游者免疫夜伤，毒不死
       } else if (isShielded(witchPoisonTarget)) {
         // 被守到的玩家免疫女巫的毒（机械狼板子沿用「奶穿」反噬规则）
@@ -1628,6 +1766,10 @@ header .subtitle {
     if (boardType === 'nightmare' && dwNum != null && isDead(dwNum) && dreamerImmune && !isDead(dreamer) && dreamer !== dwNum) {
       addDeath(dreamer);
       if (dreamNoSkillDead.indexOf(dreamer) < 0) dreamNoSkillDead.push(dreamer);
+    }
+    // 假面舞会：舞池阵营结算 —— 人数最少的一方在白天宣布出局
+    if (boardType === 'masquerade') {
+      dancePoolActualOut().forEach(n => addDeath(n));
     }
   }
 
@@ -1702,6 +1844,10 @@ header .subtitle {
     if (boardType === 'lanternSeer') {
       if (round === 1) return buildLanternSeerRound1Steps();
       return buildLanternSeerRound2PlusSteps();
+    }
+    if (boardType === 'masquerade') {
+      if (round === 1) return buildMasqueradeRound1Steps();
+      return buildMasqueradeRound2PlusSteps();
     }
     if (round === 1) return buildRound1Steps();
     return buildRound2PlusSteps();
@@ -4138,6 +4284,414 @@ header .subtitle {
     return s;
   }
 
+  // ══════════════════════════════════════════════════════════════
+  //  假面舞会板子（12人）
+  //   狼人：假面 + 三普狼   好人：舞者 / 预言家 / 女巫 / 愚者 / 四平民
+  //   规则来源：https://mp.weixin.qq.com/s/899N2NXqkQGA-Ryv_n-L9g
+  //   首夜：舞者(睁眼示意) → 假面(睁眼示意) → 狼人(讨论+刀) → 女巫 →
+  //         愚者(举手示意) → 预言家(查验) → 天亮 → 警长竞选 → 放逐
+  //   次夜：舞者(起舞) → 假面(查询舞池/面具/带刀) → 狼人(讨论+刀) →
+  //         女巫 → 预言家 → 天亮 → 放逐
+  //   · 舞池三人同阵营无事；不同阵营则人数最少的一方在白天宣布出局
+  //   · 舞者在舞池中时，当晚舞池内玩家免疫狼刀（阵营人数规则照常结算）
+  //   · 每名玩家一局仅能进入舞池一次；可进入舞池的玩家不足三人时起舞失效
+  //   · 假面与普狼不见面，普狼全出局后带刀；面具仅在目标位于舞池时生效
+  //   · 舞者、假面免疫女巫毒药；愚者被放逐翻牌免死（之后狼人需追刀）
+  // ══════════════════════════════════════════════════════════════
+  function masqueradeDeadCard(msg) {
+    return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">' + msg + '</div></div>';
+  }
+
+  // 舞池信息面板：成员、面具逆转后的阵营、当前结算
+  function masqueradePoolInfoHTML() {
+    const pool = dancePool.filter(n => n != null);
+    if (pool.length === 0) return '';
+    const flip = currentDanceMask();
+    const inPoolMask = (flip != null && pool.indexOf(flip) >= 0) ? flip : null;
+    let h = '<div class="kill-info" style="margin-top:12px"><div class="kill-label">舞池成员'
+      + (pool.length < 3 ? '（还需 ' + (3 - pool.length) + ' 人）' : '') + '</div>';
+    h += '<div class="kill-value" style="font-size:16px;color:#f0e6d3">'
+      + pool.map(n => n + '号 ' + danceCampText(n, inPoolMask)).join('　') + '</div></div>';
+    if (pool.length === 3) {
+      const outs = dancePoolOut(inPoolMask);
+      h += '<div class="action-card"><div class="card-label">当前结算：'
+        + (outs.length === 0
+          ? '三人同一阵营，无事发生'
+          : '人数最少的一方出局 → ' + outs.map(n => n + '号(' + getRoleDisplay(n) + ')').join('、'))
+        + '</div></div>';
+      if (dancerInPool()) {
+        h += '<div class="check-info"><div class="info-label">舞者在舞池中</div><div class="cv" style="font-size:15px">今晚舞池内玩家免疫狼刀伤害</div></div>';
+      }
+    }
+    if (inPoolMask != null) {
+      h += '<div class="warning-note">已计入面具：' + inPoolMask + ' 号的阵营在舞池中被逆转</div>';
+    }
+    return h;
+  }
+
+  // 女巫步骤（首夜 / 次夜通用）
+  function pushMasqueradeWitchStep(s, roundOne) {
+    const rl = roundOne ? '第1晚' : '第' + round + '晚';
+    s.push({
+      title: '女巫行动', subtitle: rl + ' - 救人/毒人',
+      desc: '请记录女巫的行动（解药未使用时女巫可知狼刀位置；舞者与假面免疫毒药）',
+      canProceed() {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return true;
+        const ik = wn === killTarget;
+        if (witchHasSave && killTarget && !ik && witchSaveAction === null) return false;
+        if (witchPoisonActive && witchPoisonTarget === null) return false;
+        return true;
+      },
+      render() {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return masqueradeDeadCard('女巫已阵亡，无法行动');
+        const wik = wn === killTarget;
+        if (wik && witchSaveAction === null) witchSaveAction = 'no-save';
+        let h = '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">'
+          + (killTarget ? killTarget + ' 号' : '空刀') + '</div></div>';
+        if (killTarget && wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+        if (witchHasSave && killTarget && !wik) {
+          h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>';
+          h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>';
+        } else if (!witchHasSave) {
+          h += '<div class="action-card"><div class="card-label">解药已使用</div></div>';
+        }
+        if (witchHasPoison) {
+          h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+          h += '<div class="action-btn ' + (!witchPoisonActive && (witchSaveAction !== null || !witchHasSave || !killTarget || wik) ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">毒药已使用</div></div>';
+        }
+        if (witchPoisonActive) {
+          h += renderGrid({ grayedNums: deadPlayers, disabledNums: [wn], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' });
+          h += '<div class="warning-note">舞者与假面免疫女巫毒药，毒到他们不会出局</div>';
+        }
+        return h;
+      },
+      handleAction(act) {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return;
+        if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; }
+        else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; }
+        else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; }
+        else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; }
+        render(currentStep);
+      },
+      handleSelect(num) {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return;
+        witchPoisonTarget = num;
+        render(currentStep);
+      },
+    });
+  }
+
+  // 预言家验人步骤（首夜 / 次夜通用）
+  function pushMasqueradeSeerStep(s, roundOne) {
+    const rl = roundOne ? '第1晚' : '第' + round + '晚';
+    const selfDead = () => { const n = getAssigned('seer'); return n == null || isDead(n); };
+    s.push({
+      title: '预言家验人', subtitle: rl + ' - 验人',
+      desc() {
+        if (selfDead()) return '预言家已阵亡，无法查验';
+        return '请选择预言家查验的目标（预言家必须参与警长竞选）';
+      },
+      canProceed: () => selfDead() || seerCheckTarget !== null,
+      render() {
+        if (selfDead()) return masqueradeDeadCard('预言家已阵亡，无法查验');
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) {
+          h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv" style="font-size:28px">'
+            + (isWolfFactionNum(seerCheckTarget) ? '狼人' : '好人') + '</div></div>';
+        }
+        return h;
+      },
+      handleSelect(num) { if (!selfDead()) { seerCheckTarget = num; render(currentStep); } },
+    });
+  }
+
+  // 天亮结算步骤（含舞池结算提示）
+  function pushMasqueradeDawnStep(s) {
+    s.push({
+      title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
+      canProceed: () => true,
+      render() {
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.slice().sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        if (dancePool.length) {
+          const flip = currentDanceMask();
+          h += '<div style="margin-top:10px;font-size:14px;color:#aab">舞池: ' + dancePool.map(n => n + '号').join('、')
+            + (flip != null ? '　面具: ' + flip + '号' : '') + '</div>';
+          const outs = dancePoolActualOut();
+          h += '<div style="margin-top:4px;font-size:13px;color:#888">舞池结算: '
+            + (outs.length ? outs.map(n => n + '号出局').join('、') : '三人同阵营，无事发生') + '</div>';
+          if (dancePoolImmune(killTarget) && killTarget) {
+            h += '<div style="margin-top:4px;font-size:13px;color:#2ecc71">舞者在舞池中 → 舞池内玩家免疫狼刀</div>';
+          }
+        }
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+  }
+
+  // 白天放逐步骤（含愚者翻牌判断）
+  function pushMasqueradeBanishStep(s) {
+    s.push({
+      title: '白天放逐', subtitle: '第' + round + '天 - 投票',
+      desc() {
+        if (idiotFlipActive()) {
+          return '被放逐的 ' + banishedPlayer + ' 号是愚者：翻牌免除本次放逐（留场发言但无投票权，狼人需追刀）';
+        }
+        return '请选择被放逐的玩家号码';
+      },
+      canProceed: () => banishedPlayer !== null,
+      render() {
+        let h = '';
+        if (idiotFlipActive()) {
+          h += '<div class="warning-note">愚者翻牌：本次放逐无效，愚者留在场上但失去投票权（之后需狼人追刀）</div>';
+          if (idiotFlipped) h += '<div class="warning-note">愚者此前已翻牌，仍不能被再次放逐</div>';
+        }
+        h += renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined });
+        return h;
+      },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+  }
+
+  // ─── 假面舞会 Round 1（首夜 + 警长 + 白天）───────────────────
+  function buildMasqueradeRound1Steps() {
+    const s = [];
+    masqueradeFillVillagers();
+
+    // 0-1. 舞者：睁眼示意
+    pushArmorAssignStep(s, 'dancer', '舞者睁眼示意',
+      '首夜舞者只需睁眼向法官示意（不发动起舞），点击记录舞者的号码', masqueradeFillVillagers);
+
+    // 2-3. 假面：睁眼示意
+    pushArmorAssignStep(s, 'mask', '假面睁眼示意',
+      '假面与普狼互不见面，首夜只需睁眼向法官示意，点击记录假面的号码', masqueradeFillVillagers);
+
+    // 4-6. 狼人：小狼 ×3 → 讨论战术 + 刀人
+    s.push({
+      title: '小狼睁眼', subtitle: '第1晚', desc: '请选择3名小狼的号码（假面不与普狼见面，不在此列）',
+      canProceed: () => getAssignedAll('wolf').length === 3,
+      render() {
+        const sel = getAssignedAll('wolf'); const left = 3 - sel.length;
+        const locked = allAssignedNums().filter(n => sel.indexOf(n) < 0 && assignments[n] !== 'villager');
+        return renderGrid({ grayedNums: locked, selectedNums: sel, multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名小狼' : '已选3名小狼' });
+      },
+      handleSelect(num) {
+        const cur = getAssignedAll('wolf');
+        if (cur.indexOf(num) >= 0) assignments[num] = 'villager';
+        else if (cur.length < 3) assign(num, 'wolf');
+        masqueradeFillVillagers();
+        render(currentStep);
+      },
+    });
+    s.push({
+      title: '狼人行动', subtitle: '第1晚 - 刀人', desc: '狼人睁眼讨论战术后，请选择今晚袭击的目标号码',
+      canProceed: () => killTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+
+    // 7-8. 女巫
+    pushArmorAssignStep(s, 'witch', '女巫请睁眼', '请点击记录女巫的号码', masqueradeFillVillagers);
+    pushMasqueradeWitchStep(s, true);
+
+    // 9. 愚者：举手示意
+    pushArmorAssignStep(s, 'idiot', '愚者举手示意',
+      '首夜愚者请举手示意，点击记录愚者的号码（愚者即白痴，被放逐可翻牌免死）', masqueradeFillVillagers);
+
+    // 10-11. 预言家：记录 + 查验
+    pushArmorAssignStep(s, 'seer', '预言家请睁眼', '请点击记录预言家的号码（预言家必须参与警长竞选）', masqueradeFillVillagers);
+    pushMasqueradeSeerStep(s, true);
+
+    // 12. 天亮
+    pushMasqueradeDawnStep(s);
+
+    // 13. 警长竞选（预言家必须参与）
+    s.push({
+      title: '最终竞选人', subtitle: '白天 - 竞选', desc: '选择最终成为警长的玩家号码（预言家必须参与竞选）',
+      canProceed: () => sheriff !== null,
+      render() {
+        const sel = typeof sheriff === 'number' ? sheriff : null;
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: sel ? [sel] : undefined });
+        h += '<div class="action-group" style="margin-top:12px"><div class="action-btn ' + (sheriff === 'none' ? 'active' : '') + '" data-act="no-sheriff">无人留到最后（无警长）</div></div>';
+        return h;
+      },
+      handleSelect(num) { sheriff = num; render(currentStep); },
+      handleAction(act) { if (act === 'no-sheriff') { sheriff = 'none'; render(currentStep); } },
+    });
+
+    // 14. 白天放逐
+    pushMasqueradeBanishStep(s);
+    return s;
+  }
+
+  // ─── 假面舞会 Round 2+（夜间 + 白天循环）────────────────────
+  function buildMasqueradeRound2PlusSteps() {
+    const s = [];
+    const rl = '第' + round + '晚';
+    const dNum = getAssigned('dancer'); const dDead = dNum == null || isDead(dNum);
+    const mNum = getAssigned('mask');   const mDead = mNum == null || isDead(mNum);
+    const wolvesKnife = aliveNormalWolves().length > 0;
+    const maskKnife = maskCarriesKnife();
+
+    // 1. 舞者起舞
+    s.push({
+      title: '舞者起舞', subtitle: rl + ' - 起舞',
+      desc() {
+        if (dDead) return '舞者已阵亡，无法起舞';
+        if (dancePoolEligible().length < 3) return '可进入舞池的玩家不足3人，今晚起舞失效';
+        return '请选择三名存活玩家共舞（可含舞者自己；每名玩家一局仅能进入舞池一次）';
+      },
+      canProceed() {
+        if (dDead) return true;
+        if (dancePoolEligible().length < 3) return true;
+        return dancePool.length === 3;
+      },
+      render() {
+        if (dDead) return masqueradeDeadCard('舞者已阵亡，无法起舞');
+        if (dancePoolEligible().length < 3) {
+          let h = masqueradeDeadCard('可进入舞池的玩家不足3人，起舞失效');
+          if (danceHistory.length) h += '<div class="warning-note">已进入过舞池: ' + danceHistory.slice().sort((a,b)=>a-b).join('、') + ' 号</div>';
+          return h;
+        }
+        const left = 3 - dancePool.length;
+        let h = renderGrid({
+          grayedNums: deadPlayers,
+          disabledNums: danceHistory,
+          selectedNums: dancePool,
+          multiLabel: left > 0 ? '还需选择 <strong>' + left + '</strong> 名玩家共舞' : '舞池已满（3人）',
+        });
+        h += masqueradePoolInfoHTML();
+        if (danceHistory.length) h += '<div class="warning-note">已进入过舞池（不可重复选择）: ' + danceHistory.slice().sort((a,b)=>a-b).join('、') + ' 号</div>';
+        return h;
+      },
+      handleSelect(num) {
+        if (dDead) return;
+        const idx = dancePool.indexOf(num);
+        if (idx >= 0) dancePool.splice(idx, 1);
+        else if (dancePool.length < 3) dancePool.push(num);
+        render(currentStep);
+      },
+    });
+
+    // 2. 假面查询舞池
+    s.push({
+      title: '假面查询舞池', subtitle: rl + ' - 查询',
+      desc() {
+        if (mDead) return '假面已阵亡，无需查询';
+        return '假面可向法官询问一名玩家是否进入舞池（不可连续两晚查询同一人），也可跳过';
+      },
+      canProceed: () => mDead || danceQueryTarget !== null,
+      render() {
+        if (mDead) return masqueradeDeadCard('假面已阵亡，无需行动');
+        let h = '<div class="action-group"><div class="action-btn ' + (danceQueryTarget === 0 ? 'active' : '') + '" data-act="no-query">不查询</div></div>';
+        h += renderGrid({
+          grayedNums: deadPlayers,
+          disabledNums: lastDanceQueryTarget != null ? [lastDanceQueryTarget] : [],
+          selectedNums: danceQueryTarget && danceQueryTarget !== 0 ? [danceQueryTarget] : undefined,
+          selectedClass: 'learn-target',
+        });
+        if (danceQueryTarget && danceQueryTarget !== 0) {
+          const inPool = dancePool.indexOf(danceQueryTarget) >= 0;
+          h += '<div class="check-info"><div class="info-label">查询结果</div><div class="cv" style="font-size:22px">'
+            + danceQueryTarget + ' 号 ' + (inPool ? '在舞池中' : '不在舞池中') + '</div></div>';
+        }
+        if (lastDanceQueryTarget != null) h += '<div class="warning-note">昨晚查询过 ' + lastDanceQueryTarget + ' 号，今晚不能连续查询同一人</div>';
+        return h;
+      },
+      handleAction(act) { if (!mDead && act === 'no-query') { danceQueryTarget = 0; render(currentStep); } },
+      handleSelect(num) { if (!mDead && num !== lastDanceQueryTarget) { danceQueryTarget = num; render(currentStep); } },
+    });
+
+    // 3. 假面使用面具
+    s.push({
+      title: '假面使用面具', subtitle: rl + ' - 面具',
+      desc() {
+        if (mDead) return '假面已阵亡，无法使用面具';
+        return '假面可选择一名玩家戴上面具（可对自己使用），逆转其在舞池中的阵营；也可不使用';
+      },
+      canProceed: () => mDead || danceMaskTarget !== null,
+      render() {
+        if (mDead) return masqueradeDeadCard('假面已阵亡，无法使用面具');
+        let h = '<div class="action-group"><div class="action-btn ' + (danceMaskTarget === 0 ? 'active' : '') + '" data-act="no-mask">不使用面具</div></div>';
+        h += renderGrid({
+          grayedNums: deadPlayers,
+          disabledNums: lastDanceMaskTarget != null ? [lastDanceMaskTarget] : [],
+          selectedNums: danceMaskTarget && danceMaskTarget !== 0 ? [danceMaskTarget] : undefined,
+          selectedClass: 'kill-target',
+        });
+        const t = currentDanceMask();
+        if (t != null) {
+          const inPool = dancePool.indexOf(t) >= 0;
+          h += '<div class="check-info"><div class="info-label">面具作用</div><div class="cv" style="font-size:18px">'
+            + t + ' 号 ' + (inPool ? '在舞池中 → 阵营被逆转' : '不在舞池中 → 无事发生') + '</div></div>';
+        }
+        h += masqueradePoolInfoHTML();
+        if (lastDanceMaskTarget != null) h += '<div class="warning-note">昨晚已给 ' + lastDanceMaskTarget + ' 号戴过面具，今晚不能连续给同一人</div>';
+        return h;
+      },
+      handleAction(act) { if (!mDead && act === 'no-mask') { danceMaskTarget = 0; render(currentStep); } },
+      handleSelect(num) { if (!mDead && num !== lastDanceMaskTarget) { danceMaskTarget = num; render(currentStep); } },
+    });
+
+    // 4. 假面带刀（普狼全部出局后由假面执刀）
+    s.push({
+      title: '假面带刀', subtitle: rl + ' - 刀人',
+      desc() { return maskKnife ? '普狼已全部出局，由假面执刀：请选择今晚袭击的目标号码' : '普狼尚存，今晚由普狼执刀，假面不带刀'; },
+      canProceed: () => !maskKnife || killTarget !== null,
+      autoSkip: () => !maskKnife,
+      render() {
+        if (!maskKnife) return masqueradeDeadCard('普狼尚存，假面不带刀');
+        let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>';
+        h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) { if (maskKnife && act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { if (maskKnife) { killTarget = num; render(currentStep); } },
+    });
+
+    // 5. 狼人刀人（普狼尚存时）
+    if (wolvesKnife) {
+      s.push({
+        title: '狼人行动', subtitle: rl + ' - 刀人', desc: '狼人睁眼讨论战术后，请选择今晚袭击的目标号码',
+        canProceed: () => killTarget !== null,
+        render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+        handleSelect(num) { killTarget = num; render(currentStep); },
+      });
+    }
+
+    // 6. 女巫
+    pushMasqueradeWitchStep(s, false);
+
+    // 7. 预言家验人
+    pushMasqueradeSeerStep(s, false);
+
+    // 8. 天亮
+    pushMasqueradeDawnStep(s);
+
+    // 9. 白天放逐
+    pushMasqueradeBanishStep(s);
+    return s;
+  }
+
   // ─── Navigation ─────────────────────────────────────────────
   function render(idx) {
     currentStep = idx;
@@ -4208,6 +4762,10 @@ header .subtitle {
         muteTarget: mechNightAction && mechNightAction.type === 'mute' ? mechNightAction.target : null,
         dreamTarget: dreamTarget,
         nightmareFearTarget: nightmareFearTarget,
+        dancePool: dancePool.slice(),
+        danceMaskTarget: currentDanceMask(),
+        danceQueryTarget: (danceQueryTarget && danceQueryTarget !== 0) ? danceQueryTarget : null,
+        danceQueryInPool: (danceQueryTarget && danceQueryTarget !== 0) ? dancePool.indexOf(danceQueryTarget) >= 0 : false,
         deaths: nightDeaths,
       },
       day: null
@@ -4217,7 +4775,8 @@ header .subtitle {
   function recordDayPhase() {
     const nightDeaths = gameLog.find(e => e.round === round)?.night?.deaths || [];
     const dayDeaths = [];
-    if (banishedPlayer && !nightDeaths.includes(banishedPlayer)) dayDeaths.push(banishedPlayer);
+    const idiotFlip = idiotFlipActive();
+    if (banishedPlayer && !nightDeaths.includes(banishedPlayer) && !idiotFlip) dayDeaths.push(banishedPlayer);
     if (wolfSuicide && typeof wolfSuicide === 'number' && !nightDeaths.includes(wolfSuicide)) dayDeaths.push(wolfSuicide);
     if (wolfKingShotTarget && !nightDeaths.includes(wolfKingShotTarget)) dayDeaths.push(wolfKingShotTarget);
     if (hunterShotTarget && !nightDeaths.includes(hunterShotTarget)) dayDeaths.push(hunterShotTarget);
@@ -4244,6 +4803,7 @@ header .subtitle {
         armorHunterRevenge: armorHunterRevengeTarget,
         knightDuel: knightDuelTarget,
         wolfSuicide: wolfSuicide,
+        idiotFlip: idiotFlip,
         deaths: dayDeaths,
       };
     }
@@ -4251,7 +4811,8 @@ header .subtitle {
 
   function advanceAfterDay() {
     recordDayPhase();
-    addDeath(banishedPlayer);
+    // 假面舞会：愚者被放逐翻牌免死，不进入出局名单
+    if (!idiotFlipActive()) addDeath(banishedPlayer);
     if (wolfSuicide && typeof wolfSuicide === 'number' && !isDead(wolfSuicide)) addDeath(wolfSuicide);
     if (wolfKingShotTarget) addDeath(wolfKingShotTarget);
     if (whiteWolfKingShotTarget) addDeath(whiteWolfKingShotTarget);
@@ -4279,6 +4840,13 @@ header .subtitle {
       } else {
         lastDreamTarget = null;
       }
+    }
+    // 假面舞会：舞池进入记录（每人一局仅一次）、面具 / 查询的「不可连续两晚」记录
+    if (boardType === 'masquerade') {
+      dancePool.forEach(n => { if (n != null && danceHistory.indexOf(n) < 0) danceHistory.push(n); });
+      lastDanceMaskTarget = currentDanceMask();
+      lastDanceQueryTarget = (danceQueryTarget && danceQueryTarget !== 0) ? danceQueryTarget : null;
+      if (idiotFlipActive()) idiotFlipped = true;
     }
     // Sync permanent potion state from this round's actions
     if (witchSaveAction === 'save') witchHasSave = false;
@@ -4827,6 +5395,8 @@ header .subtitle {
     knightDuelTarget = null;
     seerChecked = []; lanternCheckTarget = null; lanternChecked = []; knightConfirmedGood = []; knightDuelUsed = false;
     lanternBoardCheckOrder = null;
+    dancePool = []; danceMaskTarget = null; danceQueryTarget = null; danceHistory = [];
+    lastDanceMaskTarget = null; lastDanceQueryTarget = null; idiotFlipped = false;
     dreamTarget = null;
     lastDreamTarget = null;
     dreamNoSkillDead = [];
@@ -4881,6 +5451,13 @@ header .subtitle {
       if (entry.night.muteTarget) acts.push('禁言长老禁言 <span class="act">' + entry.night.muteTarget + '号</span>');
       if (entry.night.dreamTarget) acts.push('摄梦人梦游 <span class="act">' + entry.night.dreamTarget + '号</span>');
       if (entry.night.nightmareFearTarget) acts.push('噩梦之影恐惧 <span class="act">' + entry.night.nightmareFearTarget + '号</span>');
+      if (entry.night.dancePool && entry.night.dancePool.length) {
+        acts.push('舞池 ' + entry.night.dancePool.map(n => '<span class="act">' + n + '号</span>').join('、'));
+      }
+      if (entry.night.danceQueryTarget) {
+        acts.push('假面查询 <span class="act">' + entry.night.danceQueryTarget + '号</span>（' + (entry.night.danceQueryInPool ? '在舞池中' : '不在舞池中') + '）');
+      }
+      if (entry.night.danceMaskTarget) acts.push('面具 <span class="act">' + entry.night.danceMaskTarget + '号</span>');
       h += (acts.length ? acts.join('; ') : '无行动');
       h += '</div>';
       if (entry.night.deaths && entry.night.deaths.length > 0) {
@@ -4900,7 +5477,8 @@ header .subtitle {
       } else if (entry.day.sheriff === 'none') {
         dActs.push('无警长');
       }
-      if (entry.day.banished) dActs.push('放逐 <span class="act">' + entry.day.banished + '号</span>');
+      if (entry.day.banished && !entry.day.idiotFlip) dActs.push('放逐 <span class="act">' + entry.day.banished + '号</span>');
+      if (entry.day.idiotFlip) dActs.push('愚者翻牌免于放逐 <span class="act">' + entry.day.banished + '号</span>');
       if (entry.day.hunterShot) dActs.push('猎人开枪 <span class="act">' + entry.day.hunterShot + '号</span>');
       if (entry.day.hunterRevenge) dActs.push('猎人复仇开枪 <span class="act">' + entry.day.hunterRevenge + '号</span>');
       if (entry.day.mechChainShot) dActs.push('机械狼猎人开枪 <span class="act">' + entry.day.mechChainShot + '号</span>');
@@ -4939,6 +5517,9 @@ header .subtitle {
     const whiteWolfKing = getAssigned('whiteWolfKing');
     const dreamweaver = getAssigned('dreamweaver');
     const nightmare = getAssigned('nightmare');
+    const dancer = getAssigned('dancer');
+    const idiot = getAssigned('idiot');
+    const maskSeat = getAssigned('mask');
     const allRolesDone = boardType === 'wolfking'
       ? seer && witch && hunter && guard && wolves.length === 3 && wolfKing
       : boardType === 'whitewolfking'
@@ -4949,6 +5530,8 @@ header .subtitle {
       ? medium && witch && hunter && guard && wolves.length === 2 && mech && armor
       : boardType === 'lanternSeer'
       ? seer && witch && guard && knight && getAssigned('lanternSeer') && wolves.length === 3 && wolfKing
+      : boardType === 'masquerade'
+      ? seer && witch && dancer && idiot && wolves.length === 3 && maskSeat
       : seer && witch && hunter && guard && wolves.length === 3 && mech;
     const villagers = getAssignedAll('villager');
 
@@ -4965,6 +5548,12 @@ header .subtitle {
     if (boardType === 'lanternSeer') {
       const lnSeat = getAssigned('lanternSeer');
       html += '<div class="result-summary-item"><span class="label">灯影预言家</span><span class="value">' + (lnSeat != null ? lnSeat + ' 号（民坑，查验结果与实际相反）' : '?') + '</span></div>';
+    }
+    if (boardType === 'masquerade') {
+      html += '<div class="result-summary-item"><span class="label">舞者</span><span class="value">' + (dancer != null ? dancer + ' 号' : '?') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">假面</span><span class="value">' + (maskSeat != null ? maskSeat + ' 号' + (maskCarriesKnife() ? '（已带刀）' : '') : '?') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">愚者</span><span class="value">' + (idiot != null ? idiot + ' 号' + (idiotFlipped ? '（已翻牌）' : '') : '?') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">已进过舞池</span><span class="value">' + (danceHistory.length ? danceHistory.slice().sort((a,b)=>a-b).join(', ') + ' 号' : '无') + '</span></div>';
     }
     html += '<div class="result-summary-item"><span class="label">当前轮次</span><span class="value">第 ' + round + ' 轮</span></div>';
     html += '<div class="result-summary-item"><span class="label">出局玩家</span><span class="value">' + (deadPlayers.length ? deadPlayers.sort((a,b)=>a-b).join(', ') : '无') + ' 号</span></div>';
@@ -5053,6 +5642,14 @@ header .subtitle {
       html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到神</span><span class="rule-score">+1</span></div>';
       html += '<div class="rule-item"><span class="rule-desc">噩梦之影恐惧到狼人</span><span class="rule-score negative">-1</span></div>';
     }
+    if (boardType === 'masquerade') {
+      html += '<div class="rule-item"><span class="rule-desc">舞池中舞死狼人（舞者）</span><span class="rule-score">+4</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">舞池中出局好人（舞者）</span><span class="rule-score negative">-2</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">舞者入池挡住狼刀</span><span class="rule-score">+2</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">面具使好人出局 / 救下狼人</span><span class="rule-score">+2 / 人</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">面具救下好人 / 误伤狼人</span><span class="rule-score negative">-2 / 人</span></div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">面具按「相对不使用面具时的舞池结算」造成的净改变计分</div>';
+    }
     html += '<div class="rule-item"><span class="rule-desc">' + (boardType === 'armor' ? '通灵师验到狼人' : '预言家验到狼人') + '</span><span class="rule-score">+1</span></div>';
     if (boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">灯影预言家验到「狼人」</span><span class="rule-score">+1</span></div>';
@@ -5074,6 +5671,9 @@ header .subtitle {
     html += '<div class="rule-item"><span class="rule-desc">猎人开枪带走狼人</span><span class="rule-score">+4</span></div>';
     if (boardType === 'muteElder' || boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">骑士决斗杀死狼人</span><span class="rule-score">+4</span></div>';
+    }
+    if (boardType === 'masquerade') {
+      html += '<div class="rule-item"><span class="rule-desc">愚者翻牌免于放逐</span><span class="rule-score">+1</span></div>';
     }
     if (boardType === 'wolfking' || boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">狼王开枪带走神职</span><span class="rule-score">+2</span></div>';
@@ -5337,7 +5937,7 @@ header .subtitle {
     let wolfNums = [];
     for (let i = 1; i <= TOTAL; i++) {
       const rk = assignments[i];
-      if ((rk === 'wolf' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare') && !isDead(i)) wolfNums.push(i);
+      if ((rk === 'wolf' || rk === 'wolfKing' || rk === 'whiteWolfKing' || rk === 'nightmare' || rk === 'mask') && !isDead(i)) wolfNums.push(i);
     }
     for (const num of wolfNums) {
       const rk = assignments[num];
