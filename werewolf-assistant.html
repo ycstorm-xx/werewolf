@@ -5163,7 +5163,9 @@ header .subtitle {
       + '玩家 ' + players.length + ' 人 | 已有 ' + players.filter(function(p){return p.exists;}).length + ' 人 | '
       + '新增 ' + players.filter(function(p){return !p.exists;}).length + ' 人</div>';
     h += '<div style="font-size:12px;color:#888;margin-bottom:4px">结果行 R' + (resultRow + 1) + '：「' + resultText + '」</div>';
-    h += '<div style="font-size:12px;color:#888;margin-bottom:4px">记录字段：' + tdEventKeys().join(' / ') + '（值 = 对应人名，未发生为空）</div>';
+    var evFields = tdEventFields();
+    h += '<div style="font-size:12px;color:#888;margin-bottom:4px">记录字段（值 = 对应人名，未发生为空）：<br>'
+      + evFields.map(function (f) { return '<b style="color:#aab">' + f[0] + '</b> ' + f[1]; }).join('　') + '</div>';
     h += '<table><thead><tr><th>姓名</th><th>号码</th><th>胜负分</th><th>状态</th></tr></thead><tbody>';
     for (var p = 0; p < players.length; p++) {
       var pl = players[p];
@@ -5199,18 +5201,18 @@ header .subtitle {
   function colToLetter(c) { return String.fromCharCode(65 + c); }
 
   // ── 本局「出局 / 被学」事件（写入腾讯文档的记录用）──────────
-  //  返回 { 座位号: { guardedKnife, knifed, guardedPoison, poisoned, shot, voted, learned } }
-  //  · 守夜被刀 = 被狼刀、且当晚被守卫守护（守卫守到狼刀）
-  //    被刀     = 被狼刀、但当晚没被守护（与「守夜被刀」互斥，不再重复记录）
-  //  · 守夜被毒 = 被女巫毒、且当晚被守卫守护
-  //    被毒     = 被女巫毒、但当晚没被守护（与「守夜被毒」互斥）
-  //  · 被开枪带走 = 猎人 / 狼王 / 白狼王 / 机械狼·装甲狼（学猎人）开枪，含连锁开枪
-  //  · 被投出去 = 白天公投放逐出局（愚者翻牌免于放逐不计）
-  //  · 被学 = 首夜被机械狼 / 装甲狼学习（仅机械狼板子、装甲狼板子）
+  //  返回 { 座位号: { knifedWhileGuarded, knifed, poisonedWhileGuarded, poisoned, shot, votedOut, learned } }
+  //  · knifedWhileGuarded（守夜被刀）= 被狼刀、且当晚被守卫守护（守卫守到狼刀）
+  //    knifed（被刀）             = 被狼刀、但当晚没被守护（与上面互斥，不再重复记录）
+  //  · poisonedWhileGuarded（守夜被毒）= 被女巫毒、且当晚被守卫守护
+  //    poisoned（被毒）             = 被女巫毒、但当晚没被守护（与上面互斥）
+  //  · shot（被开枪带走）= 猎人 / 狼王 / 白狼王 / 机械狼·装甲狼（学猎人）开枪，含连锁开枪
+  //  · votedOut（被投出去）= 白天公投放逐出局（愚者翻牌免于放逐不计）
+  //  · learned（被学）= 首夜被机械狼 / 装甲狼学习（仅机械狼板子、装甲狼板子）
   function computeTdEvents() {
     var ev = {};
     function rec(n) {
-      if (!ev[n]) ev[n] = { guardedKnife: false, knifed: false, guardedPoison: false, poisoned: false, shot: false, voted: false, learned: false };
+      if (!ev[n]) ev[n] = { knifedWhileGuarded: false, knifed: false, poisonedWhileGuarded: false, poisoned: false, shot: false, votedOut: false, learned: false };
       return ev[n];
     }
     function seat(v) { return (typeof v === 'number' && v > 0) ? v : null; }
@@ -5220,23 +5222,31 @@ header .subtitle {
       var d = entry.day || {};
       var guard = seat(n.guardProtect);
       var kill = seat(n.wolfKill);
-      if (kill) { if (guard && guard === kill) rec(kill).guardedKnife = true; else rec(kill).knifed = true; }
+      if (kill) { if (guard && guard === kill) rec(kill).knifedWhileGuarded = true; else rec(kill).knifed = true; }
       var poison = seat(n.witchPoison);
-      if (poison) { if (guard && guard === poison) rec(poison).guardedPoison = true; else rec(poison).poisoned = true; }
+      if (poison) { if (guard && guard === poison) rec(poison).poisonedWhileGuarded = true; else rec(poison).poisoned = true; }
       if (seat(n.mechLearn)) rec(seat(n.mechLearn)).learned = true;
       if (seat(n.armorLearn)) rec(seat(n.armorLearn)).learned = true;
       var shots = [d.hunterShot, d.hunterRevenge, d.mechChainShot, d.mechHunterRevenge,
                    d.armorChainShot, d.armorHunterRevenge, d.wolfKingShot, d.whiteWolfKingShot];
       for (var si = 0; si < shots.length; si++) { var sv = seat(shots[si]); if (sv) rec(sv).shot = true; }
-      if (seat(d.banished) && !d.idiotFlip) rec(seat(d.banished)).voted = true;
+      if (seat(d.banished) && !d.idiotFlip) rec(seat(d.banished)).votedOut = true;
     }
     return ev;
   }
-  // 记录字段名（机械狼 / 装甲狼板子额外记录「被学」）
-  function tdEventKeys() {
-    var keys = ['守夜被刀', '被刀', '守夜被毒', '被毒', '被开枪带走', '被投出去'];
-    if (boardType === 'mech' || boardType === 'armor') keys.push('被学');
-    return keys;
+  // 记录字段表：[JSON key（英文）, 中文说明]
+  // 机械狼 / 装甲狼板子额外记录 learned（被学）
+  function tdEventFields() {
+    var fields = [
+      ['knifedWhileGuarded', '守夜被刀'],
+      ['knifed', '被刀（已剔除守夜被刀）'],
+      ['poisonedWhileGuarded', '守夜被毒'],
+      ['poisoned', '被毒（已剔除守夜被毒）'],
+      ['shot', '被开枪带走'],
+      ['votedOut', '被投出去']
+    ];
+    if (boardType === 'mech' || boardType === 'armor') fields.push(['learned', '被学']);
+    return fields;
   }
 
   function doSync() {
@@ -5275,7 +5285,7 @@ header .subtitle {
     var opData = {};
     var mvps = computeMvps();
     var evAll = computeTdEvents();
-    var evKeys = tdEventKeys();
+    var evKeys = tdEventFields();
     for (var i = 1; i <= TOTAL; i++) {
       var nm = nameBindings[i] || (i + '号');
       var playerLogs = [];
@@ -5291,18 +5301,9 @@ header .subtitle {
         isMvp: mvps.indexOf(i) >= 0
       };
       var ev = evAll[i] || {};
-      var evFlags = {
-        '守夜被刀': ev.guardedKnife,
-        '被刀': ev.knifed,
-        '守夜被毒': ev.guardedPoison,
-        '被毒': ev.poisoned,
-        '被开枪带走': ev.shot,
-        '被投出去': ev.voted,
-        '被学': ev.learned
-      };
       for (var ek = 0; ek < evKeys.length; ek++) {
-        var ekKey = evKeys[ek];
-        rec[ekKey] = evFlags[ekKey] ? nm : '';
+        var ekKey = evKeys[ek][0];
+        rec[ekKey] = ev[ekKey] ? nm : '';
       }
       opData[nm] = rec;
     }
