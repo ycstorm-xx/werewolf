@@ -870,6 +870,7 @@ header .subtitle {
         <div class="action-btn" data-board="nightmare" style="display:block;padding:20px;font-size:18px">梦魇板子</div>
         <div class="action-btn" data-board="lanternSeer" style="display:block;padding:20px;font-size:18px">灯影预言家板子</div>
         <div class="action-btn" data-board="masquerade" style="display:block;padding:20px;font-size:18px">假面舞会板子</div>
+        <div class="action-btn" data-board="thiefCupid" style="display:block;padding:20px;font-size:18px">盗贼丘比特板子</div>
       </div>
     </div>
   </div>
@@ -884,7 +885,7 @@ header .subtitle {
 <script>
 (function() {
   // ─── Constants / Board config ────────────────────────────────
-  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare' | 'lanternSeer' | 'masquerade'
+  let boardType = 'mech';  // 'mech' | 'armor' | 'wolfking' | 'whitewolfking' | 'muteElder' | 'nightmare' | 'lanternSeer' | 'masquerade' | 'thiefCupid'
 
   let ROLES = {};
   function initRoles(board) {
@@ -948,6 +949,18 @@ header .subtitle {
       mask:   { label: '假面',   type: 'wolf', count: 1 },
       wolf:   { label: '小狼',   type: 'wolf', count: 3 },
       villager: { label: '平民', type: 'good', count: 4 },
+    } : board === 'thiefCupid' ? {
+      // 12人盗贼丘比特：14 张底牌（平民×5、预言家、女巫、猎人、愚者、狼王、小狼×2、盗贼、丘比特）
+      //   实际开局 12 席：底牌去掉预留的 2 张、盗贼牌换成盗贼所选的那张
+      seer:   { label: '预言家', type: 'god',  count: 1 },
+      witch:  { label: '女巫',   type: 'god',  count: 1 },
+      hunter: { label: '猎人',   type: 'god',  count: 1 },
+      idiot:  { label: '愚者',   type: 'god',  count: 1 },
+      wolfKing: { label: '狼王', type: 'wolf', count: 1 },
+      wolf:   { label: '小狼',   type: 'wolf', count: 2 },
+      thief:  { label: '盗贼',   type: 'good', count: 1 },
+      cupid:  { label: '丘比特', type: 'good', count: 1 },
+      villager: { label: '平民', type: 'good', count: 5 },
     } : {
       seer:   { label: '预言家', type: 'god',  count: 1 },
       witch:  { label: '女巫',   type: 'god',  count: 1 },
@@ -968,6 +981,7 @@ header .subtitle {
       : board === 'nightmare' ? '梦魇'
       : board === 'lanternSeer' ? '灯影预言家'
       : board === 'masquerade' ? '假面舞会'
+      : board === 'thiefCupid' ? '盗贼丘比特'
       : '机械狼';
   }
   const TYPE_STYLES = {
@@ -988,6 +1002,8 @@ header .subtitle {
     dancer:  '神职。第二晚起每晚必须框定三名存活玩家共舞（可含自己）：三人同一阵营则无事发生；阵营不同则由人数最少的一方在白天宣布出局。舞者在舞池中时，当晚舞池内的玩家免疫狼刀伤害（舞池阵营人数规则照常结算）。每名玩家一局仅能进入舞池一次；可进入舞池的玩家不足三人时起舞失效。舞者免疫女巫毒药。',
     mask:    '狼人阵营，与普狼互不见面，所有普狼出局后由假面带刀。每晚在舞者之后行动：可向法官询问一名玩家是否进入舞池（不可连续两晚询问同一人），并可发动面具——逆转该玩家在舞池中的阵营，从而改变舞池人数结算；若该玩家不在舞池则无事发生。不可连续两晚给同一人戴面具，面具可以给自己使用。假面免疫女巫毒药。',
     idiot:   '神职（俗称白痴）。白天被公投出局时翻牌，免除本次放逐并留场继续发言，但失去投票权，之后不能再被放逐。本版型中若愚者已翻牌留场，狼人必须追刀使其出局才算屠神成功。',
+    thief:   '特殊角色。首夜最先睁眼，在被预留的两张底牌中选择一张作为本局身份（若两张中有狼人牌则必须选狼人牌），另一张弃置；此后完全按所选底牌的身份执行操作，被预言家查验也是该底牌的结果。',
+    cupid:   '特殊角色。首夜在盗贼之后睁眼，选择两名玩家组成情侣链子（可含自己），情侣在首夜对视确认且不会告知身份。任一方出局另一方殉情出局且无法发动技能（不能开枪）。情侣同为好人 → 丘比特帮好人；同为狼人 → 帮狼人；一狼一好 → 丘比特与情侣组成第三方，胜利条件为绑票或屠城。预言家查验丘比特为「好人」。',
     muteElder: '每晚可禁言一名玩家，使其次日白天无法发言；不能连续两晚禁言同一人。',
     dreamweaver: '每晚必须选择一名其他玩家梦游（不可选自己），梦游者免疫所有夜间伤害；连续两晚梦游同一人，该玩家梦游出局且无技能；若摄梦人死于夜间伤害，梦游者跟随出局且无技能；被恐惧会中断连续梦游。',
     mech:    '首夜学习一名玩家的身份，之后获得其技能（守卫/女巫/预言家），但始终属于狼人阵营。',
@@ -1073,6 +1089,13 @@ header .subtitle {
   let lastDanceMaskTarget = null;  // 上一晚戴面具的目标（不可连续两晚同一人）
   let lastDanceQueryTarget = null; // 上一晚查询的目标（不可连续两晚同一人）
   let idiotFlipped = false;        // 愚者是否已翻牌（本局永久）
+  // ── 盗贼丘比特板子 (thiefCupid board) ────────────────────────
+  let tcThiefSeat = null;          // 盗贼座位
+  let tcReserve = [];              // 预留的两张底牌（role key）
+  let tcPick = null;               // 盗贼选择的底牌（role key）
+  let tcLoverA = null;             // 情侣 A
+  let tcLoverB = null;             // 情侣 B
+  let tcLoverChain = [];           // 因殉情出局的玩家（无技能，不能开枪）
   let dreamTarget = null;        // 摄梦人选中的梦游者 (nightmare board)
   let lastDreamTarget = null;    // 摄梦人上一晚梦游目标（连续两晚梦游判断）
   let dreamNoSkillDead = [];     // 因梦游出局/跟随摄梦人出局而无技能的玩家（本回合）
@@ -1180,6 +1203,8 @@ header .subtitle {
     if (nightmareFearTarget === hunter) return false;
     // 猎人因梦游出局/跟随摄梦人出局 → 无技能，不能开枪
     if (dreamNoSkillDead.indexOf(hunter) >= 0) return false;
+    // 盗贼丘比特：殉情出局 → 无技能，不能开枪
+    if (tcNoSkillDead(hunter)) return false;
     return killTarget === hunter;
   }
   function canMechHunterRevenge() {
@@ -1240,7 +1265,11 @@ header .subtitle {
   // ─── Multi-round helpers ─────────────────────────────────────
   function isDead(num) { return deadPlayers.indexOf(num) >= 0; }
   function addDeath(num) {
-    if (num != null && deadPlayers.indexOf(num) < 0) deadPlayers.push(num);
+    if (num != null && deadPlayers.indexOf(num) < 0) {
+      deadPlayers.push(num);
+      // 盗贼丘比特：情侣一方出局，另一方殉情出局（无技能，不能开枪）
+      if (boardType === 'thiefCupid') tcChainLoverDeath(num);
+    }
   }
   function getAliveNums() {
     const r = [];
@@ -1282,6 +1311,7 @@ header .subtitle {
     return mechExtraKill === target || armorExtraKill === target;
   }
   function checkGameOver() {
+    if (boardType === 'thiefCupid') return tcCheckGameOver();
     const aliveWolves = getAssignedAll('wolf').filter(n => !isDead(n)).length;
     const mechN = getAssigned('mech');
     const armorN = getAssigned('armor');
@@ -1420,9 +1450,103 @@ header .subtitle {
   }
   // 愚者翻牌：白天被放逐时免除放逐（之后不能被再次放逐，需狼人追刀）
   function idiotFlipActive() {
-    return boardType === 'masquerade'
+    return (boardType === 'masquerade' || boardType === 'thiefCupid')
       && banishedPlayer != null
       && assignments[banishedPlayer] === 'idiot';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  盗贼丘比特板子（12人）辅助逻辑
+  //   14 张底牌：平民×5、预言家、女巫、猎人、愚者、狼王、小狼×2、盗贼、丘比特
+  //   预留 2 张给盗贼选（不能是两张狼人牌，且不含盗贼牌）→ 盗贼必选狼人牌（若有）
+  //   本局 12 席 = 底牌 − 预留 2 张 − 盗贼牌 + 盗贼所选那张
+  // ══════════════════════════════════════════════════════════════
+  const TC_DECK = [
+    ['villager', 5], ['seer', 1], ['witch', 1], ['hunter', 1], ['idiot', 1],
+    ['wolfKing', 1], ['wolf', 2], ['thief', 1], ['cupid', 1]
+  ];
+  const TC_WOLF_CARDS = ['wolf', 'wolfKing'];
+  function tcRoleLabel(k) { return ROLES[k] ? ROLES[k].label : k; }
+  function tcIsWolfCard(k) { return TC_WOLF_CARDS.indexOf(k) >= 0; }
+  function tcReserveTwoWolves() {
+    return tcReserve.length === 2 && tcReserve.every(tcIsWolfCard);
+  }
+  // 本局实际牌型（role key → 张数），共 12 张
+  function tcInPlay() {
+    const m = {};
+    TC_DECK.forEach(function (p) { m[p[0]] = p[1]; });
+    m.thief = (m.thief || 0) - 1;                        // 盗贼牌被替换
+    tcReserve.forEach(function (k) { m[k] = (m[k] || 0) - 1; });
+    if (tcPick) m[tcPick] = (m[tcPick] || 0) + 1;
+    Object.keys(m).forEach(function (k) { if (m[k] <= 0) delete m[k]; });
+    return m;
+  }
+  function tcCupidInPlay() { return (tcInPlay().cupid || 0) > 0; }
+  function tcFillVillagers() {
+    for (let i = 1; i <= TOTAL; i++) { if (!assignments[i]) assignments[i] = 'villager'; }
+  }
+  // 情侣链子：一狼一好 → 第三方
+  function tcLoversMixed() {
+    if (boardType !== 'thiefCupid') return false;
+    if (tcLoverA == null || tcLoverB == null) return false;
+    return isWolfFactionNum(tcLoverA) !== isWolfFactionNum(tcLoverB);
+  }
+  function tcThirdPartyActive() {
+    if (!tcLoversMixed()) return false;
+    return !isDead(tcLoverA) && !isDead(tcLoverB);
+  }
+  function tcThirdMembers() {
+    const arr = [];
+    if (tcLoverA != null && !isDead(tcLoverA)) arr.push(tcLoverA);
+    if (tcLoverB != null && !isDead(tcLoverB)) arr.push(tcLoverB);
+    const cs = getAssigned('cupid');
+    if (cs != null && !isDead(cs) && arr.indexOf(cs) < 0) arr.push(cs);
+    return arr;
+  }
+  function tcIsThirdMember(num) {
+    if (!tcThirdPartyActive() || num == null) return false;
+    return tcThirdMembers().indexOf(num) >= 0;
+  }
+  function tcIsLover(num) { return num != null && (num === tcLoverA || num === tcLoverB); }
+  function tcLoverPartner(num) { return num === tcLoverA ? tcLoverB : (num === tcLoverB ? tcLoverA : null); }
+  // 殉情连锁：任意一方出局，另一方跟着出局（且无法发动技能）
+  function tcChainLoverDeath(num) {
+    if (boardType !== 'thiefCupid') return;
+    const partner = tcLoverPartner(num);
+    if (partner == null || deadPlayers.indexOf(partner) >= 0) return;
+    deadPlayers.push(partner);
+    if (tcLoverChain.indexOf(partner) < 0) tcLoverChain.push(partner);
+  }
+  function tcNoSkillDead(num) { return boardType === 'thiefCupid' && tcLoverChain.indexOf(num) >= 0; }
+  // 胜负分：第三方成员单独计算
+  function tcThirdWinScore(num) {
+    if (boardType !== 'thiefCupid' || !gameWinner) return null;
+    const isThird = tcIsThirdMember(num);
+    if (!isThird && gameWinner !== 'third') return null;
+    if (gameWinner === 'third') return isThird ? 3 : -3;
+    return -3;   // 第三方阵营的成员但第三方没赢
+  }
+  // 盗贼丘比特板子胜负判定
+  function tcCheckGameOver() {
+    const alive = getAliveNums();
+    const aliveCount = alive.length;
+    const third = tcThirdPartyActive() ? tcThirdMembers() : [];
+    // 第三方：场上只剩第三方成员（绑票 / 屠城）
+    if (third.length >= 2 && aliveCount === third.length) return 'third';
+    // 狼人全灭 → 好人胜
+    const wolvesAlive = alive.filter(function (n) { return isWolfFactionNum(n); }).length;
+    if (wolvesAlive === 0) return 'good';
+    // 屠神 / 屠民（丘比特不计入，仅按实际在场的神职与平民）
+    const gods = ['seer', 'witch', 'hunter', 'idiot'];
+    let godsTotal = 0, godsAlive = 0, villTotal = 0, villAlive = 0;
+    for (let i = 1; i <= TOTAL; i++) {
+      const rk = assignments[i];
+      if (gods.indexOf(rk) >= 0) { godsTotal++; if (!isDead(i)) godsAlive++; }
+      else if (rk === 'villager') { villTotal++; if (!isDead(i)) villAlive++; }
+    }
+    if (godsTotal > 0 && godsAlive === 0) return 'wolf';
+    if (villTotal > 0 && villAlive === 0) return 'wolf';
+    return null;
   }
   function awardScore(num, points, reason) {
     if (num == null) return;
@@ -1704,6 +1828,8 @@ header .subtitle {
     while (deadPlayers.length > roundStartDeadCount) {
       deadPlayers.pop();
     }
+    // 殉情标记同步回滚（只保留仍在出局名单里的）
+    if (boardType === 'thiefCupid') tcLoverChain = tcLoverChain.filter(n => isDead(n));
     // 清空本回合“无技能出局”标记（梦游出局 / 跟随摄梦人出局）
     dreamNoSkillDead = [];
     const dwNum = boardType === 'nightmare' ? getAssigned('dreamweaver') : null;
@@ -1848,6 +1974,10 @@ header .subtitle {
     if (boardType === 'masquerade') {
       if (round === 1) return buildMasqueradeRound1Steps();
       return buildMasqueradeRound2PlusSteps();
+    }
+    if (boardType === 'thiefCupid') {
+      if (round === 1) return buildThiefCupidRound1Steps();
+      return buildThiefCupidRound2PlusSteps();
     }
     if (round === 1) return buildRound1Steps();
     return buildRound2PlusSteps();
@@ -4692,6 +4822,548 @@ header .subtitle {
     return s;
   }
 
+  // ══════════════════════════════════════════════════════════════
+  //  盗贼丘比特板子（12人）
+  //   底牌 14 张：平民×5、预言家、女巫、猎人、愚者、狼王、小狼×2、盗贼、丘比特
+  //   预留 2 张给盗贼选（不能是两张狼人牌）→ 有狼人牌必须选狼人 → 另一张弃置
+  //   本局 12 席 = 底牌 − 预留 2 张 − 盗贼牌 + 盗贼所选那张
+  //   首夜：盗贼（选牌）→ 丘比特（选情侣）→ 情侣对视 → 狼人（记录+讨论+刀）→
+  //         女巫（记录+用药）→ 猎人举手 → 愚者举手 → 预言家（记录+查验）→
+  //         配牌核对（剩余座位补平民）→ 天亮 → 猎人夜枪 → 警长竞选 → 放逐 → 猎人开枪
+  //   次夜：狼人 → 女巫 → 预言家 → 天亮 → 猎人夜枪 → 放逐 → 猎人开枪
+  //   · 情侣任一方出局，另一方殉情出局且无法发动技能（不能开枪）
+  //   · 情侣同好 → 丘比特帮好人；同狼 → 帮狼人；一狼一好 → 第三方（绑票 / 屠城获胜）
+  //   · 预言家查验丘比特 = 好人；查验盗贼 = 其所选底牌
+  //   · 愚者被放逐可翻牌留场（无投票权，之后不能再被放逐）
+  //   · 屠神 / 屠民只按实际在场的神职与平民统计，丘比特不计入；狼人全灭 → 好人胜
+  // ══════════════════════════════════════════════════════════════
+  function tcDeadCard(msg) {
+    return '<div class="action-card" style="text-align:center;padding:20px"><div class="card-label">' + msg + '</div></div>';
+  }
+  // 本局该角色还需要记录的座位数（盗贼所选那张由盗贼座位占用）
+  function tcNeedTotal(roleKey) { return tcInPlay()[roleKey] || 0; }
+  function tcAssignedCount(roleKey) { return getAssignedAll(roleKey).length; }
+  function tcInPlayText() {
+    const m = tcInPlay();
+    const order = ['seer', 'witch', 'hunter', 'idiot', 'wolfKing', 'wolf', 'cupid', 'villager'];
+    const parts = [];
+    order.forEach(function (k) { if (m[k]) parts.push(tcRoleLabel(k) + '×' + m[k]); });
+    const sum = order.reduce(function (a, k) { return a + (m[k] || 0); }, 0);
+    return { text: parts.join('　'), sum: sum };
+  }
+
+  // 记录角色座位（可多张）；本局不需要记录时自动跳过
+  function pushTcRoleSeats(s, roleKey, title, descText) {
+    const label = tcRoleLabel(roleKey);
+    const need = () => tcNeedTotal(roleKey);
+    s.push({
+      title: title || (label + '请睁眼'),
+      subtitle: '第1晚 - 记录位置',
+      desc() {
+        const n = need();
+        return descText || ('请点击记录 ' + label + ' 的号码（本局共 ' + n + ' 张牌）');
+      },
+      autoSkip: () => need() <= 0,
+      canProceed: () => tcAssignedCount(roleKey) >= need(),
+      render() {
+        const n = need();
+        const sel = getAssignedAll(roleKey);
+        const left = n - sel.length;
+        let h = armorSeatBar([roleKey]);
+        h += renderGrid({
+          grayedNums: grayedExcept(roleKey),
+          selectedNums: sel,
+          multiLabel: left > 0 ? ('还需选择 <strong>' + left + '</strong> 名' + label) : ('已记录 ' + n + ' 名' + label)
+        });
+        return h;
+      },
+      handleSelect(num) {
+        const cur = getAssignedAll(roleKey);
+        if (num === tcThiefSeat) return;                       // 盗贼座位不能在本步骤改号
+        if (cur.indexOf(num) >= 0) unassign(num);
+        else if (cur.length < need()) assign(num, roleKey);
+        render(currentStep);
+      },
+    });
+  }
+
+  // 预留底牌（2 张，不含盗贼牌，不能是两张狼人牌）
+  function pushTcReserveStep(s) {
+    const pool = ['villager', 'seer', 'witch', 'hunter', 'idiot', 'wolfKing', 'wolf', 'cupid'];
+    s.push({
+      title: '预留两张底牌', subtitle: '第1晚 - 盗贼',
+      desc: '请记录发给盗贼的两张预留底牌（不能是两张狼人牌，盗贼牌不在预留范围）',
+      canProceed: () => tcReserve.length === 2 && !tcReserveTwoWolves(),
+      render() {
+        let h = '<div class="kill-info" style="margin-top:0"><div class="kill-label">当前预留（需 2 张）</div><div class="kill-value" style="font-size:16px">'
+          + (tcReserve.length ? tcReserve.map(tcRoleLabel).join('、') : '未选择') + '</div></div>';
+        if (tcReserveTwoWolves()) h += '<div class="warning-note" style="color:#e74c3c">两张预留底牌不能都是狼人牌，请调整</div>';
+        if (tcReserve.length) {
+          h += '<div class="action-group">';
+          tcReserve.forEach(function (k, i) {
+            h += '<div class="action-btn" data-act="unreserve:' + i + '">✕ 取消 ' + tcRoleLabel(k) + '</div>';
+          });
+          h += '</div>';
+        }
+        h += '<div class="action-group">';
+        pool.forEach(function (k) {
+          const deckN = tcNeedDeckCount(k);
+          const used = tcReserve.filter(function (x) { return x === k; }).length;
+          const dis = (used >= deckN || tcReserve.length >= 2) ? ' disabled' : '';
+          h += '<div class="action-btn' + dis + '" data-act="reserve:' + k + '">' + tcRoleLabel(k) + '（余 ' + (deckN - used) + '）</div>';
+        });
+        h += '</div>';
+        h += '<div class="warning-note">同一张牌可以被预留两张（如两张平民）；预留牌会影响本局神职 / 狼人 / 平民的数量，请按实际发牌记录</div>';
+        return h;
+      },
+      handleAction(act) {
+        if (!act) return;
+        if (act.indexOf('unreserve:') === 0) {
+          const i = parseInt(act.slice(10), 10);
+          if (!isNaN(i) && i >= 0 && i < tcReserve.length) { tcReserve.splice(i, 1); render(currentStep); }
+          return;
+        }
+        if (act.indexOf('reserve:') !== 0) return;
+        const k = act.slice(8);
+        if (tcReserve.length >= 2) return;
+        if (tcReserve.filter(function (x) { return x === k; }).length >= tcNeedDeckCount(k)) return;
+        tcReserve.push(k);
+        render(currentStep);
+      },
+    });
+  }
+  // 底牌里某角色的张数（盗贼牌除外，用于预留上限）
+  function tcNeedDeckCount(k) {
+    let n = 0;
+    TC_DECK.forEach(function (p) { if (p[0] === k) n = p[1]; });
+    return n;
+  }
+
+  // 盗贼选牌
+  function pushTcPickStep(s) {
+    s.push({
+      title: '盗贼选牌', subtitle: '第1晚 - 盗贼',
+      desc() {
+        const forced = tcReserve.filter(tcIsWolfCard)[0];
+        if (forced) return '预留底牌中有狼人牌，盗贼必须选择狼人牌「' + tcRoleLabel(forced) + '」';
+        return '请点击盗贼选择的那张底牌（另一张弃置）';
+      },
+      canProceed: () => tcPick !== null,
+      render() {
+        const forced = tcReserve.filter(tcIsWolfCard)[0];
+        let h = '<div class="action-group">';
+        tcReserve.forEach(function (k, i) {
+          const locked = forced && k !== forced;
+          const act = tcPick === k ? ' active' : '';
+          h += '<div class="action-btn' + act + (locked ? ' disabled' : '') + '" data-act="pick:' + i + '">' + tcRoleLabel(k) + (locked ? '（不能选）' : '') + '</div>';
+        });
+        h += '</div>';
+        if (tcPick) {
+          const other = tcReserve.filter(function (k) { return k !== tcPick; })[0];
+          h += '<div class="check-info"><div class="info-label">盗贼本局身份</div><div class="cv" style="font-size:18px">'
+            + tcThiefSeat + ' 号 → ' + tcRoleLabel(tcPick) + (other ? '（另一张「' + tcRoleLabel(other) + '」弃置）' : '') + '</div></div>';
+          h += '<div class="warning-note">被弃置的底牌本局不再出现，请据此核对配牌</div>';
+        }
+        return h;
+      },
+      handleAction(act) {
+        if (!act || act.indexOf('pick:') !== 0) return;
+        const i = parseInt(act.slice(5), 10);
+        const k = tcReserve[i];
+        if (!k) return;
+        const forced = tcReserve.filter(tcIsWolfCard)[0];
+        if (forced && k !== forced) return;
+        tcPick = k;
+        if (tcThiefSeat == null) tcThiefSeat = getAssigned('thief');
+        if (tcThiefSeat != null) assignments[tcThiefSeat] = k;   // 盗贼座位换成所选身份
+        render(currentStep);
+      },
+    });
+  }
+
+  // 丘比特：记录座位 → 选择情侣 → 情侣对视
+  function pushTcCupidSteps(s) {
+    s.push({
+      title: '丘比特睁眼', subtitle: '第1晚 - 丘比特',
+      desc: '丘比特请睁眼，请点击记录丘比特的号码（若本局丘比特被弃置则跳过）',
+      autoSkip: () => !tcCupidInPlay() || tcPick === 'cupid',
+      canProceed: () => getAssigned('cupid') != null || tcPick === 'cupid',
+      render() {
+        if (tcPick === 'cupid') {
+          return '<div class="check-info"><div class="info-label">丘比特</div><div class="cv" style="font-size:18px">盗贼选择了丘比特牌 → '
+            + tcThiefSeat + ' 号同时是丘比特</div></div>';
+        }
+        if (!tcCupidInPlay()) return tcDeadCard('本局丘比特被弃置，场上没有丘比特');
+        const sel = getAssigned('cupid');
+        let h = '';
+        if (sel != null) h += '<div class="check-info"><div class="info-label">丘比特位置</div><div class="cv">' + sel + ' 号</div></div>';
+        h += renderGrid({ grayedNums: grayedExcept('cupid'), selectedNums: sel ? [sel] : undefined });
+        return h;
+      },
+      handleSelect(num) {
+        if (tcPick === 'cupid') return;
+        const p = getAssigned('cupid');
+        if (p === num) return;
+        if (p != null) assign(p, 'villager');
+        assign(num, 'cupid');
+        render(currentStep);
+      },
+    });
+    s.push({
+      title: '丘比特选择情侣', subtitle: '第1晚 - 情侣',
+      desc: '请选择两名玩家组成情侣链子（可包含丘比特自己，情侣一旦确定不能更改）',
+      autoSkip: () => !tcCupidInPlay(),
+      canProceed: () => tcLoverA != null && tcLoverB != null,
+      render() {
+        const sel = [tcLoverA, tcLoverB].filter(function (n) { return n != null; });
+        let h = renderGrid({
+          grayedNums: deadPlayers,
+          selectedNums: sel,
+          selectedClass: 'learn-target',
+          multiLabel: '已选情侣 <strong>' + sel.length + '</strong> / 2'
+        });
+        h += '<div class="warning-note">丘比特不会获知情侣的身份；情侣在选择后立即对视确认</div>';
+        return h;
+      },
+      handleSelect(num) {
+        if (tcLoverA === num) { tcLoverA = null; }
+        else if (tcLoverB === num) { tcLoverB = null; }
+        else if (tcLoverA == null) { tcLoverA = num; }
+        else if (tcLoverB == null) { tcLoverB = num; }
+        if (tcLoverA == null && tcLoverB != null) { tcLoverA = tcLoverB; tcLoverB = null; }
+        render(currentStep);
+      },
+    });
+    s.push({
+      title: '情侣对视', subtitle: '第1晚 - 情侣',
+      desc: '情侣请睁眼对视确认（不能交流身份信息）',
+      autoSkip: () => !tcCupidInPlay(),
+      canProceed: () => tcLoverA != null && tcLoverB != null,
+      render() {
+        let h = '<div class="check-info"><div class="info-label">本局情侣链子</div><div class="cv" style="font-size:20px">'
+          + tcLoverA + ' 号 ♥ ' + tcLoverB + ' 号</div></div>';
+        h += '<div class="warning-note">任一方出局另一方殉情出局（殉情一方无法发动技能）</div>';
+        return h;
+      },
+    });
+  }
+
+  // 配牌核对：剩余座位补平民并校验
+  function pushTcDeckCheckStep(s) {
+    s.push({
+      title: '配牌核对', subtitle: '第1晚 - 配牌', desc: '未记录的座位自动补为平民，请核对方位与本局配牌是否一致',
+      canProceed: () => true,
+      render() {
+        tcFillVillagers();
+        const info = tcInPlayText();
+        let h = '<div class="kill-info" style="margin-top:0"><div class="kill-label">本局配牌（' + info.sum + ' 张）</div><div class="kill-value" style="font-size:16px">' + info.text + '</div></div>';
+        const m = tcInPlay();
+        const warns = [];
+        Object.keys(m).forEach(function (k) {
+          const got = getAssignedAll(k).length;
+          if (got !== m[k]) warns.push(tcRoleLabel(k) + '：配牌 ' + m[k] + '，记录 ' + got);
+        });
+        if (warns.length) h += '<div class="warning-note" style="color:#e74c3c">座位记录与配牌不一致：' + warns.join('；') + '（可回上一步改号）</div>';
+        else h += '<div class="check-info"><div class="info-label">核对结果</div><div class="cv" style="font-size:15px">座位记录与配牌一致</div></div>';
+        if (tcLoverA != null && tcLoverB != null) {
+          h += '<div class="warning-note">情侣：' + tcLoverA + ' 号 ♥ ' + tcLoverB + ' 号' + (tcLoversMixed() ? '（一狼一好 → 第三方阵营）' : '') + '</div>';
+        }
+        return h;
+      },
+    });
+  }
+
+  // 女巫用药（首夜/次夜通用）
+  function pushTcWitchStep(s) {
+    s.push({
+      title: '女巫行动', subtitle: (round === 1 ? '第1晚' : '第' + round + '晚') + ' - 救人/毒人',
+      desc: '请记录女巫的行动（解药未使用时女巫可知狼刀位置）',
+      autoSkip: () => getAssigned('witch') == null,
+      canProceed() {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return true;
+        const ik = wn === killTarget;
+        if (witchHasSave && killTarget && !ik && witchSaveAction === null) return false;
+        if (witchPoisonActive && witchPoisonTarget === null) return false;
+        return true;
+      },
+      render() {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return tcDeadCard('女巫已阵亡，无法行动');
+        const wik = wn === killTarget;
+        if (wik && witchSaveAction === null) witchSaveAction = 'no-save';
+        let h = '<div class="kill-info" style="margin-top:0"><div class="kill-label">狼人今晚刀人</div><div class="kill-value">'
+          + (killTarget ? killTarget + ' 号' : '空刀') + '</div></div>';
+        if (killTarget && wik) h += '<div class="warning-note">女巫被刀，无法自救</div>';
+        if (witchHasSave && killTarget && !wik) {
+          h += '<div class="action-card"><div class="card-label">救人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchSaveAction === 'save' ? 'active' : '') + '" data-act="save-witch">救 ' + killTarget + ' 号</div>';
+          h += '<div class="action-btn ' + (witchSaveAction === 'no-save' ? 'active' : '') + '" data-act="no-save-witch">不救</div></div></div>';
+        } else if (!witchHasSave) {
+          h += '<div class="action-card"><div class="card-label">解药已使用</div></div>';
+        }
+        if (witchHasPoison) {
+          h += '<div class="action-card"><div class="card-label">毒人与否</div><div class="action-group">';
+          h += '<div class="action-btn ' + (witchPoisonActive ? 'active danger' : '') + '" data-act="poison-on">毒人</div>';
+          h += '<div class="action-btn ' + (!witchPoisonActive && (witchSaveAction !== null || !witchHasSave || !killTarget || wik) ? 'active' : '') + '" data-act="poison-off">不毒</div></div></div>';
+        } else {
+          h += '<div class="action-card"><div class="card-label">毒药已使用</div></div>';
+        }
+        if (witchPoisonActive) h += renderGrid({ grayedNums: deadPlayers, disabledNums: [wn], selectedNums: witchPoisonTarget ? [witchPoisonTarget] : undefined, selectedClass: 'kill-target' });
+        return h;
+      },
+      handleAction(act) {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return;
+        if (act === 'save-witch') { witchSaveAction = 'save'; witchPoisonActive = false; witchPoisonTarget = null; }
+        else if (act === 'no-save-witch') { witchSaveAction = 'no-save'; }
+        else if (act === 'poison-on') { witchPoisonActive = true; witchSaveAction = 'no-save'; }
+        else if (act === 'poison-off') { witchPoisonActive = false; witchPoisonTarget = null; }
+        render(currentStep);
+      },
+      handleSelect(num) {
+        const wn = getAssigned('witch');
+        if (wn == null || isDead(wn)) return;
+        witchPoisonTarget = num;
+        render(currentStep);
+      },
+    });
+  }
+
+  // 预言家查验（首夜/次夜通用；查验丘比特为好人、查验盗贼为其所选底牌）
+  function pushTcSeerStep(s) {
+    const selfDead = () => { const n = getAssigned('seer'); return n == null || isDead(n); };
+    s.push({
+      title: '预言家验人', subtitle: (round === 1 ? '第1晚' : '第' + round + '晚') + ' - 验人',
+      desc() { return selfDead() ? '预言家已阵亡，无法查验' : '请选择预言家查验的目标'; },
+      autoSkip: () => getAssigned('seer') == null,
+      canProceed: () => selfDead() || seerCheckTarget !== null,
+      render() {
+        if (getAssigned('seer') == null) return tcDeadCard('本局没有预言家');
+        if (selfDead()) return tcDeadCard('预言家已阵亡，无法查验');
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: seerCheckTarget ? [seerCheckTarget] : undefined, selectedClass: 'learn-target' });
+        if (seerCheckTarget) {
+          const rk = assignments[seerCheckTarget];
+          let shown = isWolfFactionNum(seerCheckTarget) ? '狼人' : '好人';
+          h += '<div class="check-info"><div class="info-label">查验结果</div><div class="cv" style="font-size:28px">' + shown + '</div></div>';
+          if (rk === 'cupid') h += '<div class="warning-note">丘比特被查验为好人</div>';
+          if (tcThiefSeat != null && seerCheckTarget === tcThiefSeat && tcPick) {
+            h += '<div class="warning-note">盗贼按其选择的底牌结算：' + tcRoleLabel(tcPick) + '</div>';
+          }
+        }
+        return h;
+      },
+      handleSelect(num) { if (!selfDead()) { seerCheckTarget = num; render(currentStep); } },
+    });
+  }
+
+  // 天亮结算
+  function pushTcDawnStep(s) {
+    s.push({
+      title: '天亮', subtitle: '第' + round + '天', desc: '昨夜行动结算',
+      canProceed: () => true,
+      render() {
+        tcFillVillagers();
+        resolveNightDeaths();
+        scoreNightActions();
+        recordNightPhase();
+        isDayPhase = true;
+        const over = checkGameOver(); if (over) { scoreGameEnd(); gameWinner = over; }
+        const tonightDeaths = deadPlayers.slice(roundStartDeadCount);
+        let h = '<div class="result-section"><div class="action-card" style="text-align:center;padding:20px">';
+        if (tonightDeaths.length === 0) h += '<div class="card-label">昨夜平安无事</div>';
+        else h += '<div class="card-label">昨夜出局: ' + tonightDeaths.slice().sort((a,b)=>a-b).map(n => n + '号(' + getRoleDisplay(n) + ')').join('、') + '</div>';
+        const chained = tonightDeaths.filter(n => tcLoverChain.indexOf(n) >= 0);
+        if (chained.length) h += '<div style="margin-top:8px;font-size:14px;color:#e8a0b4">殉情: ' + chained.map(n => n + '号').join('、') + '</div>';
+        if (tcLoverA != null && tcLoverB != null) {
+          h += '<div style="margin-top:8px;font-size:13px;color:#aab">情侣: ' + tcLoverA + ' 号 ♥ ' + tcLoverB + ' 号'
+            + (isDead(tcLoverA) && isDead(tcLoverB) ? '（均已出局）' : '') + '</div>';
+        }
+        h += '<div style="margin-top:12px;font-size:13px;color:#888">存活: ' + getAliveNums().sort((a,b)=>a-b).join(', ') + ' 号</div>';
+        h += '</div></div>';
+        return h;
+      },
+    });
+  }
+
+  // 猎人开枪（夜晚被刀）
+  function pushTcHunterNightShot(s) {
+    s.push({
+      title: '猎人复仇开枪', subtitle: '晨曦',
+      desc() { const hh = getAssigned('hunter'); return hh != null ? hh + ' 号猎人在夜晚被刀，可以开枪带走一人' : ''; },
+      autoSkip: () => !canHunterRevenge(),
+      canProceed: () => !canHunterRevenge() || hunterRevengeTarget !== null,
+      render() {
+        if (!canHunterRevenge()) return tcDeadCard('猎人未被刀死，无需开枪');
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: hunterRevengeTarget ? [hunterRevengeTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterRevengeTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人开枪带走</div><div class="kill-value">' + hunterRevengeTarget + ' 号 (' + getRoleDisplay(hunterRevengeTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { hunterRevengeTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+  }
+  // 猎人开枪（被放逐）
+  function pushTcHunterDayShot(s) {
+    s.push({
+      title: '猎人开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ') 可以开枪，请选择目标'; },
+      autoSkip: () => !banishedPlayer || !canShootAsHunter(banishedPlayer),
+      canProceed: () => !banishedPlayer || !canShootAsHunter(banishedPlayer) || hunterShotTarget !== null,
+      render() {
+        if (!banishedPlayer || !canShootAsHunter(banishedPlayer)) return tcDeadCard('被放逐的玩家不是猎人，无需开枪');
+        let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: hunterShotTarget ? [hunterShotTarget] : undefined, selectedClass: 'kill-target' });
+        if (hunterShotTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">猎人开枪带走</div><div class="kill-value">' + hunterShotTarget + ' 号 (' + getRoleDisplay(hunterShotTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { if (num === banishedPlayer) return; hunterShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+  }
+  // 狼王开枪（被放逐）
+  function pushTcWolfKingShotStep(s) {
+    s.push({
+      title: '狼王开枪', subtitle: '开枪',
+      desc() { return '被放逐的 ' + banishedPlayer + ' 号 (' + getRoleDisplay(banishedPlayer) + ') 是狼王，可以开枪带走一人'; },
+      autoSkip: () => !banishedPlayer || !canShootAsWolfKing(banishedPlayer),
+      canProceed: () => !banishedPlayer || !canShootAsWolfKing(banishedPlayer) || wolfKingShotTarget !== null,
+      render() {
+        if (!banishedPlayer || !canShootAsWolfKing(banishedPlayer)) return tcDeadCard('被放逐的玩家不是狼王，无需开枪');
+        let h = renderGrid({ grayedNums: [banishedPlayer, ...deadPlayers], selectedNums: wolfKingShotTarget ? [wolfKingShotTarget] : undefined, selectedClass: 'kill-target' });
+        if (wolfKingShotTarget) h += '<div class="kill-info" style="margin-top:12px"><div class="kill-label">狼王开枪带走</div><div class="kill-value">' + wolfKingShotTarget + ' 号 (' + getRoleDisplay(wolfKingShotTarget) + ')</div></div>';
+        return h;
+      },
+      handleSelect(num) { if (num === banishedPlayer) return; wolfKingShotTarget = num; if (!isDead(num)) addDeath(num); render(currentStep); },
+    });
+  }
+  // 白天放逐（愚者翻牌免死）
+  function pushTcBanishStep(s) {
+    s.push({
+      title: '白天放逐', subtitle: '第' + round + '天 - 投票',
+      desc() {
+        if (idiotFlipActive()) return '被放逐的 ' + banishedPlayer + ' 号是愚者：翻牌继续留场，但失去投票权（狼人需追刀）';
+        return '请选择被放逐的玩家号码';
+      },
+      canProceed: () => banishedPlayer !== null,
+      render() {
+        let h = '';
+        if (idiotFlipActive()) {
+          h += '<div class="warning-note">愚者翻牌：本次放逐无效，愚者留在场上但没有投票权（之后需狼人追刀）</div>';
+          if (idiotFlipped) h += '<div class="warning-note">愚者此前已翻牌，仍不能被再次放逐</div>';
+        }
+        h += renderGrid({ grayedNums: deadPlayers, selectedNums: banishedPlayer ? [banishedPlayer] : undefined });
+        return h;
+      },
+      handleSelect(num) { banishedPlayer = num; render(currentStep); },
+    });
+  }
+
+  // ─── 盗贼丘比特 Round 1 ──────────────────────────────────────
+  function buildThiefCupidRound1Steps() {
+    const s = [];
+
+    // 1-3. 盗贼：记录座位 → 预留底牌 → 选牌
+    s.push({
+      title: '盗贼睁眼', subtitle: '第1晚 - 盗贼',
+      desc: '首夜盗贼最先睁眼，请点击记录盗贼的号码（随后记录发给他的两张预留底牌）',
+      canProceed: () => getAssigned('thief') != null,
+      render() {
+        const sel = getAssigned('thief');
+        let h = '';
+        if (sel != null) h += '<div class="check-info"><div class="info-label">盗贼位置</div><div class="cv">' + sel + ' 号</div></div>';
+        h += renderGrid({ grayedNums: grayedExcept('thief'), selectedNums: sel ? [sel] : undefined });
+        return h;
+      },
+      handleSelect(num) {
+        const p = getAssigned('thief');
+        if (p === num) return;
+        if (p != null) unassign(p);
+        assign(num, 'thief');
+        tcThiefSeat = num;
+        render(currentStep);
+      },
+    });
+    pushTcReserveStep(s);
+    pushTcPickStep(s);
+
+    // 4-6. 丘比特 + 情侣
+    pushTcCupidSteps(s);
+
+    // 7-8. 狼人：狼王 → 小狼 → 刀人
+    pushTcRoleSeats(s, 'wolfKing', '狼王举手示意', '请让狼王举手示意，点击记录狼王的号码');
+    pushTcRoleSeats(s, 'wolf', '小狼请睁眼', '请点击记录小狼的号码');
+    s.push({
+      title: '狼人行动', subtitle: '第1晚 - 刀人', desc: '狼人睁眼讨论战术后，请选择今晚袭击的目标号码',
+      canProceed: () => killTarget !== null,
+      render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: [], selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+      handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+      handleSelect(num) { killTarget = num; render(currentStep); },
+    });
+
+    // 9-10. 女巫
+    pushTcRoleSeats(s, 'witch', '女巫请睁眼', '请点击记录女巫的号码');
+    pushTcWitchStep(s);
+
+    // 11-12. 猎人 / 愚者
+    pushTcRoleSeats(s, 'hunter', '猎人举手示意', '请点击记录猎人的号码');
+    pushTcRoleSeats(s, 'idiot', '愚者举手示意', '请点击记录愚者的号码（愚者被放逐可翻牌免死）');
+
+    // 13-14. 预言家
+    pushTcRoleSeats(s, 'seer', '预言家请睁眼', '请点击记录预言家的号码');
+    pushTcSeerStep(s);
+
+    // 15. 配牌核对（剩余座位补平民）
+    pushTcDeckCheckStep(s);
+
+    // 16. 天亮
+    pushTcDawnStep(s);
+
+    // 17. 猎人夜枪
+    pushTcHunterNightShot(s);
+
+    // 18. 警长竞选（本版型不要求预言家上警）
+    s.push({
+      title: '最终竞选人', subtitle: '白天 - 竞选', desc: '选择最终成为警长的玩家号码（本版型不要求预言家上警；狼人自爆吞警徽）',
+      canProceed: () => sheriff !== null,
+      render() {
+        const sel = typeof sheriff === 'number' ? sheriff : null;
+        let h = renderGrid({ grayedNums: deadPlayers, selectedNums: sel ? [sel] : undefined });
+        h += '<div class="action-group" style="margin-top:12px"><div class="action-btn ' + (sheriff === 'none' ? 'active' : '') + '" data-act="no-sheriff">无人留到最后（无警长）</div></div>';
+        return h;
+      },
+      handleSelect(num) { sheriff = num; render(currentStep); },
+      handleAction(act) { if (act === 'no-sheriff') { sheriff = 'none'; render(currentStep); } },
+    });
+
+    // 19-21. 放逐 + 狼王开枪 + 猎人开枪
+    pushTcBanishStep(s);
+    pushTcWolfKingShotStep(s);
+    pushTcHunterDayShot(s);
+    return s;
+  }
+
+  // ─── 盗贼丘比特 Round 2+ ─────────────────────────────────────
+  function buildThiefCupidRound2PlusSteps() {
+    const s = [];
+    const rl = '第' + round + '晚';
+    const wolvesAlive = getAliveNums().filter(n => isWolfFactionNum(n)).length > 0;
+    if (wolvesAlive) {
+      s.push({
+        title: '狼人行动', subtitle: rl + ' - 刀人', desc: '狼人睁眼讨论战术后，请选择今晚袭击的目标号码',
+        canProceed: () => killTarget !== null,
+        render() { let h = '<div class="action-group"><div class="action-btn ' + (killTarget === 0 ? 'active' : '') + '" data-act="no-kill">不刀</div></div>'; h += renderGrid({ grayedNums: deadPlayers, selectedNums: killTarget ? [killTarget] : undefined, selectedClass: 'kill-target' }); return h; },
+        handleAction(act) { if (act === 'no-kill') { killTarget = 0; render(currentStep); } },
+        handleSelect(num) { killTarget = num; render(currentStep); },
+      });
+    }
+    pushTcWitchStep(s);
+    pushTcSeerStep(s);
+    pushTcDawnStep(s);
+    pushTcHunterNightShot(s);
+    pushTcBanishStep(s);
+    pushTcWolfKingShotStep(s);
+    pushTcHunterDayShot(s);
+    return s;
+  }
+
   // ─── Navigation ─────────────────────────────────────────────
   function render(idx) {
     currentStep = idx;
@@ -4766,6 +5438,9 @@ header .subtitle {
         danceMaskTarget: currentDanceMask(),
         danceQueryTarget: (danceQueryTarget && danceQueryTarget !== 0) ? danceQueryTarget : null,
         danceQueryInPool: (danceQueryTarget && danceQueryTarget !== 0) ? dancePool.indexOf(danceQueryTarget) >= 0 : false,
+        tcPick: round === 1 ? tcPick : null,
+        tcLoverA: round === 1 ? tcLoverA : null,
+        tcLoverB: round === 1 ? tcLoverB : null,
         deaths: nightDeaths,
       },
       day: null
@@ -4871,6 +5546,10 @@ header .subtitle {
       if ((scores[i] || 0) === maxScore && maxScore > 0) candidates.push(i);
     }
     if (candidates.length <= 1) return candidates;
+    if (gameWinner === 'third') {
+      const third = candidates.filter(n => tcIsThirdMember(n));
+      return third.length > 0 ? third : candidates;
+    }
     const winningTeamTypes = gameWinner === 'good' ? ['god', 'good'] : ['wolf'];
     const mvps = candidates.filter(n => {
       const rk = assignments[n];
@@ -4883,9 +5562,9 @@ header .subtitle {
     gameWinner = winner;
     document.getElementById('progressFill').style.width = '100%';
     document.getElementById('progressStep').textContent = '游戏结束';
-    document.getElementById('progressRole').textContent = winner === 'good' ? '好人获胜' : '狼人获胜';
+    document.getElementById('progressRole').textContent = winner === 'good' ? '好人获胜' : winner === 'third' ? '第三方获胜' : '狼人获胜';
     document.getElementById('stepSubtitle').textContent = '';
-    document.getElementById('stepTitle').textContent = winner === 'good' ? '好人阵营获胜！' : '狼人阵营获胜！';
+    document.getElementById('stepTitle').textContent = winner === 'good' ? '好人阵营获胜！' : winner === 'third' ? '第三方阵营获胜！' : '狼人阵营获胜！';
     document.getElementById('stepDesc').textContent = '';
     document.getElementById('btnPrev').disabled = true;
     document.getElementById('btnNext').style.display = 'none';
@@ -4918,7 +5597,7 @@ header .subtitle {
     let html = '<div class="result-section">';
     html += mvpSection;
     html += '<div class="result-summary">';
-    html += '<div class="result-summary-item"><span class="label">获胜方</span><span class="value">' + (winner === 'good' ? '好人' : '狼人') + '</span></div>';
+    html += '<div class="result-summary-item"><span class="label">获胜方</span><span class="value">' + (winner === 'good' ? '好人' : winner === 'third' ? '第三方' : '狼人') + '</span></div>';
     html += '<div class="result-summary-item"><span class="label">游戏轮数</span><span class="value">第 ' + round + ' 轮</span></div>';
     html += '<div class="result-summary-item"><span class="label">出局玩家</span><span class="value">' + (deadPlayers.length ? deadPlayers.sort((a,b)=>a-b).join(', ') : '无') + ' 号</span></div>';
     const totalScore = Object.values(scores).reduce((a,b) => a + b, 0);
@@ -4948,7 +5627,9 @@ header .subtitle {
       if (rk === 'whiteWolfKing') display = '白狼王';
       if (rk === 'whiteWolfKing') display = '白狼王';
       let ws = 0;
-      if (ri) {
+      const tcWs = tcThirdWinScore(i);
+      if (tcWs !== null) ws = tcWs;
+      else if (ri) {
         if (gameWinner === 'good') {
           if (ri.type === 'good') ws = 1;
           else if (ri.type === 'god') ws = 2;
@@ -5469,6 +6150,7 @@ header .subtitle {
     lanternBoardCheckOrder = null;
     dancePool = []; danceMaskTarget = null; danceQueryTarget = null; danceHistory = [];
     lastDanceMaskTarget = null; lastDanceQueryTarget = null; idiotFlipped = false;
+    tcThiefSeat = null; tcReserve = []; tcPick = null; tcLoverA = null; tcLoverB = null; tcLoverChain = [];
     dreamTarget = null;
     lastDreamTarget = null;
     dreamNoSkillDead = [];
@@ -5530,6 +6212,8 @@ header .subtitle {
         acts.push('假面查询 <span class="act">' + entry.night.danceQueryTarget + '号</span>（' + (entry.night.danceQueryInPool ? '在舞池中' : '不在舞池中') + '）');
       }
       if (entry.night.danceMaskTarget) acts.push('面具 <span class="act">' + entry.night.danceMaskTarget + '号</span>');
+      if (entry.night.tcPick) acts.push('盗贼选 <span class="act">' + (ROLES[entry.night.tcPick] ? ROLES[entry.night.tcPick].label : entry.night.tcPick) + '</span>');
+      if (entry.night.tcLoverA && entry.night.tcLoverB) acts.push('情侣 <span class="act">' + entry.night.tcLoverA + '号♥' + entry.night.tcLoverB + '号</span>');
       h += (acts.length ? acts.join('; ') : '无行动');
       h += '</div>';
       if (entry.night.deaths && entry.night.deaths.length > 0) {
@@ -5604,6 +6288,8 @@ header .subtitle {
       ? seer && witch && guard && knight && getAssigned('lanternSeer') && wolves.length === 3 && wolfKing
       : boardType === 'masquerade'
       ? seer && witch && dancer && idiot && wolves.length === 3 && maskSeat
+      : boardType === 'thiefCupid'
+      ? allAssignedNums().length >= TOTAL
       : seer && witch && hunter && guard && wolves.length === 3 && mech;
     const villagers = getAssignedAll('villager');
 
@@ -5627,6 +6313,15 @@ header .subtitle {
       html += '<div class="result-summary-item"><span class="label">愚者</span><span class="value">' + (idiot != null ? idiot + ' 号' + (idiotFlipped ? '（已翻牌）' : '') : '?') + '</span></div>';
       html += '<div class="result-summary-item"><span class="label">已进过舞池</span><span class="value">' + (danceHistory.length ? danceHistory.slice().sort((a,b)=>a-b).join(', ') + ' 号' : '无') + '</span></div>';
     }
+    if (boardType === 'thiefCupid') {
+      const info = tcInPlayText();
+      html += '<div class="result-summary-item"><span class="label">盗贼</span><span class="value">' + (tcThiefSeat != null ? tcThiefSeat + ' 号' : '?') + (tcPick ? ' → ' + tcRoleLabel(tcPick) : '') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">预留底牌</span><span class="value">' + (tcReserve.length ? tcReserve.map(tcRoleLabel).join('、') : '?') + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">本局配牌</span><span class="value">' + info.text + '</span></div>';
+      html += '<div class="result-summary-item"><span class="label">情侣</span><span class="value">' + (tcLoverA != null && tcLoverB != null
+        ? tcLoverA + ' 号 ♥ ' + tcLoverB + ' 号' + (tcLoversMixed() ? '（第三方）' : (isWolfFactionNum(tcLoverA) ? '（狼狼）' : '（好人）'))
+        : '无') + '</span></div>';
+    }
     html += '<div class="result-summary-item"><span class="label">当前轮次</span><span class="value">第 ' + round + ' 轮</span></div>';
     html += '<div class="result-summary-item"><span class="label">出局玩家</span><span class="value">' + (deadPlayers.length ? deadPlayers.sort((a,b)=>a-b).join(', ') : '无') + ' 号</span></div>';
     html += '<div class="result-summary-item"><span class="label">女巫解药/毒药</span><span class="value">' + (witchHasSave ? '有' : '无') + '/' + (witchHasPoison ? '有' : '无') + '</span></div>';
@@ -5648,7 +6343,9 @@ header .subtitle {
           : ' (学' + getRoleDisplay(armorLearnTarget) + ')';
       }
       let ws = 0;
-      if (ri && gameWinner) {
+      const tcWs2 = tcThirdWinScore(i);
+      if (tcWs2 !== null) ws = tcWs2;
+      else if (ri && gameWinner) {
         if (gameWinner === 'good') {
           if (ri.type === 'good') ws = 1;
           else if (ri.type === 'god') ws = 2;
@@ -5746,6 +6443,12 @@ header .subtitle {
     }
     if (boardType === 'masquerade') {
       html += '<div class="rule-item"><span class="rule-desc">愚者翻牌免于放逐</span><span class="rule-score">+1</span></div>';
+    }
+    if (boardType === 'thiefCupid') {
+      html += '<div class="rule-item"><span class="rule-desc">愚者翻牌免于放逐</span><span class="rule-score">+1</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">第三方阵营获胜（绑票 / 屠城）</span><span class="rule-score positive">+3</span></div>';
+      html += '<div class="rule-item" style="border-bottom:none"><span class="rule-desc">第三方阵营成员但未获胜</span><span class="rule-score negative">-3</span></div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">第三方 = 丘比特 + 一狼一好的情侣；情侣任一方出局另一方殉情，殉情方不能开枪</div>';
     }
     if (boardType === 'wolfking' || boardType === 'lanternSeer') {
       html += '<div class="rule-item"><span class="rule-desc">狼王开枪带走神职</span><span class="rule-score">+2</span></div>';
