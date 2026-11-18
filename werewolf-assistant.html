@@ -1033,7 +1033,7 @@ header .subtitle {
   // 角色技能说明（个别角色在不同板子里规则不同，这里按板子区分）
   function roleSkillText(k) {
     if (k === 'cupid' && boardType === 'cupid13') {
-      return '特殊角色（占民坑）。首夜最先睁眼，选择两名玩家组成情侣（可包含自己），情侣在首夜对视确认且不会获知对方身份。任一方出局，另一方殉情出局且无法发动技能（不能开枪）。情侣同为好人 → 丘比特随好人阵营，胜利条件与好人一致；同为狼人 → 丘比特随狼人阵营，胜利条件与狼人一致；一狼一好 → 丘比特与情侣组成第三方，获胜条件是清除场上其他所有玩家（若好人 / 狼人提前达成各自获胜条件，则由该阵营获胜）。胜负分：丘比特固定 +2（无论胜负）。预言家查验丘比特为「好人」。';
+      return '特殊角色（占民坑）。首夜最先睁眼，选择两名玩家组成情侣（可包含自己），情侣在首夜对视确认且不会获知对方身份。任一方出局，另一方殉情出局且无法发动技能（不能开枪）。情侣同为好人 → 丘比特随好人阵营，胜利条件与好人一致；同为狼人 → 丘比特随狼人阵营，胜利条件与狼人一致；一狼一好 → 丘比特与情侣组成第三方，获胜条件是清除场上其他所有玩家（若好人 / 狼人提前达成各自获胜条件，则由该阵营获胜）。胜负分：丘比特随链子阵营固定 ±2（胜 +2 / 负 -2）；一狼一好时三人只在第三方独立获胜时加分，否则按身份扣分。预言家查验丘比特为「好人」。';
     }
     return ROLE_SKILLS[k] || '';
   }
@@ -1581,7 +1581,7 @@ header .subtitle {
   // ══════════════════════════════════════════════════════════════
   //  丘比特13 板子（13人）
   //   4 神：预言家、女巫、守卫、猎人
-  //   1 特殊：丘比特（占民坑，胜负分同平民）
+  //   1 特殊：丘比特（占民坑，胜负分随链子阵营，固定 ±2）
   //   4 狼：狼王、小狼×3
   //   4 民：平民×4
   //   首夜：丘比特（记录 + 选情侣 + 情侣对视）→ 守卫（记录 + 守人）→
@@ -1596,9 +1596,10 @@ header .subtitle {
   //   · 情侣一狼一好（人狼恋 / 神狼恋）→ 丘比特 + 情侣二人组成第三方：
   //       - 第三方获胜 = 场上其他所有玩家全部出局（只剩第三方成员）
   //       - 好人 / 狼人若「提前」达成自己的获胜条件，则按各自阵营获胜
-  //       - 第三方获胜时按各自身份加分（民 +1、神 +2、狼 +3，丘比特固定 +2），
-  //         其余玩家按身份扣分；第三方没赢则各按自己阵营正常计分
-  //   · 胜负分：丘比特固定 +2（无论好人 / 狼人 / 第三方谁获胜、自己是否失败）
+  //       - 只有第三方独立获胜时，三人才按各自身份加分（民 +1、神 +2、狼 +3、丘比特 +2）
+  //       - 第三方没赢时，三人一律按身份扣分（狼 -3、神 -2、民 -1、丘比特 -2），
+  //         即使最后是狼人赢 / 好人赢也一样；其余玩家仍按各自阵营结算
+  //   · 胜负分：丘比特随链子阵营，固定 ±2（胜 +2 / 负 -2）
   //   · 狼人全灭 → 好人胜；屠神（四神全灭）/ 屠民（四民全灭）→ 狼人胜
   //     （丘比特不计入屠神 / 屠民统计）
   // ══════════════════════════════════════════════════════════════
@@ -1642,17 +1643,45 @@ header .subtitle {
     const cs = getAssigned('cupid');
     return cs != null && num === cs;
   }
-  // 第三方获胜时才单独计分：按各自身份加分，其余玩家按身份扣分
+  // 第三方阵营（一狼一好）的胜负分：
+  //   · 只有第三方「独立获胜」时，丘比特与情侣二人才加分；
+  //   · 第三方没赢时，即使最后是狼人 / 好人获胜，链子里的三个人一律按各自身份扣分
+  //     （狼人 -3、神职 -2、平民 -1、丘比特 -2），其余玩家照常按自己阵营结算
   function cpThirdWinScore(num) {
-    if (boardType !== 'cupid13' || gameWinner !== 'third' || num == null) return null;
+    if (boardType !== 'cupid13' || !cpLoversMixed() || !gameWinner || num == null) return null;
     const rk = assignments[num];
     const t = ROLES[rk] ? ROLES[rk].type : null;
     if (!t) return 0;
     if (cpIsThirdFaction(num)) {
-      if (rk === 'cupid') return 2;                        // 丘比特作为胜利方固定 +2
-      return t === 'god' ? 2 : t === 'wolf' ? 3 : 1;
+      if (gameWinner === 'third') {
+        // 第三方获胜：按各自身份加分（丘比特固定 +2）
+        if (rk === 'cupid') return 2;
+        return t === 'god' ? 2 : t === 'wolf' ? 3 : 1;
+      }
+      // 第三方没赢：三人全部扣分
+      if (rk === 'cupid') return -2;
+      return t === 'god' ? -2 : t === 'wolf' ? -3 : -1;
     }
-    return t === 'god' ? -2 : t === 'wolf' ? -3 : -1;
+    // 非第三方玩家：按自己阵营正常结算
+    if (gameWinner === 'good') {
+      if (t === 'good') return 1;
+      if (t === 'god') return 2;
+      if (t === 'wolf') return -3;
+    } else if (gameWinner === 'wolf') {
+      if (t === 'good') return -1;
+      if (t === 'god') return -2;
+      if (t === 'wolf') return 3;
+    } else if (gameWinner === 'third') {
+      // 第三方获胜：其余玩家全部按身份扣分
+      return t === 'god' ? -2 : t === 'wolf' ? -3 : -1;
+    }
+    return 0;
+  }
+  // 丘比特的阵营是否获胜（情侣同好 → 随好人；同狼 → 随狼人；一狼一好已由第三方函数处理）
+  function cpCupidSideWins() {
+    if (tcLoverA == null || tcLoverB == null) return gameWinner === 'good';
+    if (isWolfFactionNum(tcLoverA) && isWolfFactionNum(tcLoverB)) return gameWinner === 'wolf';
+    return gameWinner === 'good';
   }
   // 某座位本局「胜负分」（各板子统一入口，结算页 / 记录页 / 同步表格共用）
   function winScoreFor(num) {
@@ -1662,8 +1691,8 @@ header .subtitle {
     if (cpWs !== null) return cpWs;
     const ri = ROLES[assignments[num]];
     if (!ri || !gameWinner) return 0;
-    // 丘比特13：丘比特的胜负分固定 +2（无论胜负、站在哪一边）
-    if (boardType === 'cupid13' && assignments[num] === 'cupid') return 2;
+    // 丘比特13：丘比特胜负分固定 ±2（随情侣阵营，胜 +2 / 负 -2）
+    if (boardType === 'cupid13' && assignments[num] === 'cupid') return cpCupidSideWins() ? 2 : -2;
     if (gameWinner === 'good') {
       if (ri.type === 'good') return 1;
       if (ri.type === 'god') return 2;
@@ -6864,11 +6893,13 @@ header .subtitle {
     html += '<div class="rule-item"><span class="rule-desc">狼人赢 — 神职</span><span class="rule-score negative">-2</span></div>';
     html += '<div class="rule-item"' + (boardType === 'cupid13' ? '' : ' style="border-bottom:none"') + '><span class="rule-desc">狼人赢 — 狼人</span><span class="rule-score positive">+3</span></div>';
     if (boardType === 'cupid13') {
-      html += '<div class="rule-item" style="border-bottom:none"><span class="rule-desc">丘比特（固定，胜负都一样）</span><span class="rule-score positive">+2</span></div>';
+      html += '<div class="rule-item"><span class="rule-desc">丘比特（随链子阵营） — 胜</span><span class="rule-score positive">+2</span></div>';
+      html += '<div class="rule-item" style="border-bottom:none"><span class="rule-desc">丘比特（随链子阵营） — 负</span><span class="rule-score negative">-2</span></div>';
     }
     if (boardType === 'cupid13') {
-      html += '<div class="rule-sub" style="padding:0 0 6px">丘比特的链子：同为好人 → 丘比特随好人；同为狼人 → 丘比特随狼人；一狼一好 → 丘比特 + 情侣组成第三方</div>';
-      html += '<div class="rule-sub" style="padding:0 0 6px">第三方获胜时按各自身份加分：平民 +1、神职 +2、狼人 +3，丘比特固定 +2，其余玩家按身份扣分；第三方未获胜时按各自阵营正常计分</div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">丘比特的链子：同为好人 → 丘比特按好人算；同为狼人 → 按狼人算；一狼一好 → 丘比特 + 情侣三人组成第三方，独立结算</div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">第三方独立获胜时三人才加分：平民 +1、神职 +2、狼人 +3、丘比特 +2；第三方没赢时三人按身份扣分（狼 -3、神 -2、民 -1、丘比特 -2），即使最后是狼人赢 / 好人赢也一样</div>';
+      html += '<div class="rule-sub" style="padding:0 0 6px">第三方局面下，其余（非第三方）玩家仍按各自阵营正常结算</div>';
     }
     html += '</div>';
 
